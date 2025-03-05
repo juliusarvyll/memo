@@ -1,7 +1,19 @@
-import { Link, Head } from '@inertiajs/react';
+import { Link, Head, usePage } from '@inertiajs/react';
 import { LoginForm } from "@/components/login-form"
+import { useEffect } from 'react';
+import { router } from '@inertiajs/react';
 
 export default function Welcome({ appName }) {
+    const { auth } = usePage().props;
+    const user = auth.user;
+
+    // If user is logged in, redirect to dashboard
+    useEffect(() => {
+        if (user) {
+            router.visit(route('dashboard'));
+        }
+    }, [user]);
+
     return (
         <>
             <Head title="Welcome" />
@@ -14,7 +26,15 @@ export default function Welcome({ appName }) {
                             className="h-20 w-auto"
                         />
                     </div>
-                    <LoginForm />
+                    {!user && <LoginForm />}
+                    {user && (
+                        <div className="text-center">
+                            <p className="mb-4">You are already logged in.</p>
+                            <Link href={route('dashboard')} className="text-blue-600 hover:underline">
+                                Go to Dashboard
+                            </Link>
+                        </div>
+                    )}
                 </div>
             </div>
         </>

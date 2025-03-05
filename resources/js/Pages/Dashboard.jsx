@@ -120,12 +120,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                                                 ) && (
                                                     <DropdownMenuItem>
                                                         <a
+                                                            href="/admin"
                                                             className="w-full flex items-center"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                window.location.href = '/admin';
-                                                            }}
                                                         >
                                                             Admin Panel
                                                         </a>
@@ -176,7 +172,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
                 {/* Check if there are memos to display */}
                 {memos && memos.length > 0 ? (
-                    <div className="flex-1 container mx-auto max-w-6xl px-2 sm:px-4 pb-4 sm:pb-8">
+                    <div className="flex-1 container mx-auto max-w-6xl px-2 sm:px-4 pb-2 sm:pb-8">
                         <Tabs defaultValue="all" className="h-full">
                             {/* Sticky tabs navigation */}
                             <div className="sticky top-0 bg-gray-50 pt-2 pb-2 sm:pb-4 z-10">
