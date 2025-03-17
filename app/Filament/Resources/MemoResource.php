@@ -74,7 +74,20 @@ class MemoResource extends Resource
                             ->default(fn () => auth()->id()),
 
                         Forms\Components\RichEditor::make('content')
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->disableToolbarButtons([
+                                'blockquote',
+                                'strike',
+                                'attachFiles',
+                                'link',
+                                'unlink',
+                                'insertImage',
+                                'insertTable',
+                                'insertTable',
+                                'insertTable',
+                                'undo',
+                                'redo',
+                            ]),
 
                         Forms\Components\Toggle::make('is_published')
                             ->label('Publish')

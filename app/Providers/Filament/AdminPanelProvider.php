@@ -19,7 +19,6 @@ use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
-use App\Http\Middleware\EnsureFilamentAccess;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -68,10 +67,6 @@ class AdminPanelProvider extends PanelProvider
                     ->label('Content Management'),
                 NavigationGroup::make()
                     ->label('User Management'),
-            ])
-            ->middleware([
-                SubstituteBindings::class,
-                EnsureFilamentAccess::class,
             ]);
     }
 }

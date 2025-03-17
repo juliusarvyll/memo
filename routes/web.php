@@ -9,35 +9,20 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
-// Welcome page for guests only
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'appName' => config('app.name'),
-    ]);
-})->middleware('guest')->name('welcome');
 
 // Dashboard for authenticated users
-Route::get('/dashboard', function () {
+Route::get('/', function () {
     return Inertia::render('Dashboard', [
         'memos' => App\Models\Memo::with(['category', 'author:id,name,avatar'])
             ->where('is_published', true)
             ->orderBy('published_at', 'desc')
             ->get(),
     ]);
-})->middleware(['auth', 'verified'])->name('dashboard');
+})->name('dashboard');
 
 // Authenticated routes
-Route::middleware(['auth', 'verified'])->group(function () {
-    // User profile management
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-
-    // Memo routes for authenticated users (if needed)
-    Route::get('/memos', [DashboardController::class, 'memos'])->name('memos.index');
-    Route::get('/memos/{memo}', [DashboardController::class, 'show'])->name('memos.show');
-
-});
+Route::get('/memos', [DashboardController::class, 'memos'])->name('memos.index');
+Route::get('/memos/{memo}', [DashboardController::class, 'show'])->name('memos.show');
 
 // Include auth routes
 require __DIR__.'/auth.php';
@@ -237,16 +222,4 @@ Route::get('/test-valid-emails-only', function () {
     }
 })->middleware(['auth']);
 
-// Add a dedicated admin login route
-Route::get('/admin/login', function () {
-    if (auth()->check() && auth()->user()->can('access_filament')) {
-        return redirect('/admin');
-    }
-    return redirect()->route('login')->with('message', 'Please log in to access the admin panel');
-})->name('filament.admin.login');
 
-// Add a new route specifically for Filament redirects
-Route::get('/admin/auth/login', function () {
-    // This will just redirect to your custom admin login route
-    return redirect()->route('filament.admin.login');
-})->name('filament.admin.auth.login');

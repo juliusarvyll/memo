@@ -89,9 +89,9 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
     return (
         <>
-            <Head title="SPUP Memo Dashboard" />
+            <Head title="SPUP eBulletin" />
             <div className="flex flex-col min-h-screen bg-gray-50">
-                {/* Header section with auth */}
+                {/* Header section without auth */}
                 <header className="bg-white shadow border-b py-2 sm:py-4">
                     <div className="container mx-auto max-w-6xl px-2 sm:px-4">
                         <div className="flex justify-between items-center">
@@ -101,81 +101,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                                     alt="SPUP Logo"
                                     className="h-8 sm:h-12 w-auto"
                                 />
-                                <h1 className="text-lg sm:text-xl font-bold">SPUP Memo</h1>
-                            </div>
-
-                            <div className="flex items-center space-x-2 sm:space-x-4">
-                                {user ? (
-                                    <>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                                                    <Avatar className="h-8 w-8">
-                                                        {avatarSrc ? (
-                                                            <AvatarImage
-                                                                src={avatarSrc}
-                                                                alt={user.name}
-                                                                onError={handleAvatarError}
-                                                            />
-                                                        ) : (
-                                                            <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-                                                        )}
-                                                    </Avatar>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent className="w-56" align="end" forceMount>
-                                                <DropdownMenuLabel className="font-normal">
-                                                    <div className="flex flex-col space-y-1">
-                                                        <p className="text-sm font-medium leading-none">{user.name}</p>
-                                                        <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-                                                    </div>
-                                                </DropdownMenuLabel>
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem asChild>
-                                                    <Link href={route('profile.edit')} className="w-full cursor-pointer">
-                                                        Profile
-                                                    </Link>
-                                                </DropdownMenuItem>
-                                                {user.roles && user.roles.some(role =>
-                                                    ['super_admin', 'editor', 'author'].includes(role.name)
-                                                ) && (
-                                                    <DropdownMenuItem>
-                                                        <a
-                                                            href="/admin"
-                                                            className="w-full flex items-center cursor-pointer"
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                window.location.href = '/admin';
-                                                            }}
-                                                        >
-                                                            Admin Panel
-                                                        </a>
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuItem asChild className="text-red-600">
-                                                    <Link
-                                                        href={route('logout')}
-                                                        method="post"
-                                                        as="button"
-                                                        className="w-full cursor-pointer flex items-center"
-                                                    >
-                                                        <PowerIcon className="mr-2 h-4 w-4" />
-                                                        <span>Log out</span>
-                                                    </Link>
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </>
-                                ) : (
-                                    <div className="flex items-center space-x-2">
-                                        {canLogin && (
-                                            <Link href={route('login')} className="text-sm text-gray-700 hover:text-gray-900">
-                                                <Button variant="ghost" size="sm">Log in</Button>
-                                            </Link>
-                                        )}
-                                    </div>
-                                )}
+                                <h1 className="text-lg sm:text-xl font-bold">SPUP eBulletin</h1>
                             </div>
                         </div>
                     </div>
@@ -186,16 +112,15 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                     <div className="container mx-auto max-w-6xl">
                         <div className="text-center mb-4 sm:mb-6">
                             <div className="flex flex-col items-center space-y-1 sm:space-y-2">
-                                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">SPUP Memo Dashboard</h1>
                                 <p className="text-sm sm:text-base text-muted-foreground max-w-2xl px-2">
-                                    View the latest memos and announcements from different departments.
+                                    View the latest announcements and updates.
                                 </p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Check if there are memos to display */}
+                {/* Check if there are memos to display - removed auth dependency */}
                 {memos && memos.length > 0 ? (
                     <div className="flex-1 container mx-auto max-w-6xl px-2 sm:px-4 pb-2 sm:pb-8">
                         <Tabs defaultValue="all" className="h-full">
@@ -253,17 +178,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                             <div className="bg-white p-8 rounded-lg shadow-md text-center">
                                 <h2 className="text-xl font-semibold mb-2">No Memos Available</h2>
                                 <p className="text-muted-foreground mb-4">
-                                    {user ?
-                                        "There are no published memos at the moment. Please check back later." :
-                                        "Please log in to view memos and announcements."}
+                                    There are no published memos at the moment. Please check back later.
                                 </p>
-                                {!user && (
-                                    <Button asChild>
-                                        <Link href={route('login')}>
-                                            Log In
-                                        </Link>
-                                    </Button>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -502,8 +418,8 @@ function MemoCard({ memo, onClick }) {
                         </div>
                     </div>
 
-                    <div className="text-sm text-white/80 line-clamp-3 overflow-hidden"
-                         dangerouslySetInnerHTML={{ __html: memo.content }}>
+                    <div className="text-sm text-white/80 line-clamp-3 overflow-hidden">
+                        {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
                     </div>
 
                     <div className="flex justify-between items-center pt-2 text-xs text-white/70">
