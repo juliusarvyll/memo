@@ -17,8 +17,8 @@ class EnsureFilamentAccess
     {
         // First check if the user is authenticated
         if (! $request->user()) {
-            // User is not logged in - redirect to login or show auth error
-            return redirect()->route('welcome')->with('message', 'You must be logged in to access the admin panel');
+            // User is not logged in - redirect to login page
+            return redirect()->route('login')->with('message', 'You must be logged in to access the admin panel');
         }
 
         // Then check if the authenticated user has permission

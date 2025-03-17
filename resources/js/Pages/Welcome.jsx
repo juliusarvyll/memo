@@ -10,7 +10,8 @@ export default function Welcome({ appName }) {
     // If user is logged in, redirect to dashboard
     useEffect(() => {
         if (user) {
-            router.visit(route('dashboard'));
+            // Use direct window.location navigation to prevent any intercepting
+            window.location.href = route('dashboard');
         }
     }, [user]);
 

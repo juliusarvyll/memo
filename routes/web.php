@@ -236,3 +236,17 @@ Route::get('/test-valid-emails-only', function () {
         return 'Error: ' . $e->getMessage();
     }
 })->middleware(['auth']);
+
+// Add a dedicated admin login route
+Route::get('/admin/login', function () {
+    if (auth()->check() && auth()->user()->can('access_filament')) {
+        return redirect('/admin');
+    }
+    return redirect()->route('login')->with('message', 'Please log in to access the admin panel');
+})->name('filament.admin.login');
+
+// Add a new route specifically for Filament redirects
+Route::get('/admin/auth/login', function () {
+    // This will just redirect to your custom admin login route
+    return redirect()->route('filament.admin.login');
+})->name('filament.admin.auth.login');

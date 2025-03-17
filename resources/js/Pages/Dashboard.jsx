@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarIcon, UserIcon, BellIcon, PowerIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow, format } from 'date-fns';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -29,6 +29,9 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [imageModalOpen, setImageModalOpen] = useState(false);
     const [avatarSrc, setAvatarSrc] = useState(null);
+    const [isZooming, setIsZooming] = useState(false);
+    const imageContainerRef = useRef(null);
+    const zoomImageRef = useRef(null);
 
     // Set up avatar source with error handling
     useEffect(() => {
@@ -64,6 +67,24 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const openImageModal = (e) => {
         e.stopPropagation();
         setImageModalOpen(true);
+    };
+
+    const handleImageMouseMove = (e) => {
+        if (!imageContainerRef.current || !zoomImageRef.current) return;
+
+        const { left, top, width, height } = imageContainerRef.current.getBoundingClientRect();
+
+        // Calculate position in percentage (0 to 100)
+        const x = Math.max(0, Math.min(100, ((e.clientX - left) / width) * 100));
+        const y = Math.max(0, Math.min(100, ((e.clientY - top) / height) * 100));
+
+        // Set transform origin based on mouse position
+        zoomImageRef.current.style.transformOrigin = `${x}% ${y}%`;
+        setIsZooming(true);
+    };
+
+    const handleImageMouseLeave = () => {
+        setIsZooming(false);
     };
 
     return (
@@ -121,7 +142,11 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                                                     <DropdownMenuItem>
                                                         <a
                                                             href="/admin"
-                                                            className="w-full flex items-center"
+                                                            className="w-full flex items-center cursor-pointer"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                window.location.href = '/admin';
+                                                            }}
                                                         >
                                                             Admin Panel
                                                         </a>
@@ -265,15 +290,20 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                             {selectedMemo.image ? (
                                 <div className="lg:w-3/5 bg-black flex items-center justify-center p-0">
                                     <div
-                                        className="relative w-full h-full cursor-pointer"
+                                        ref={imageContainerRef}
+                                        className="relative w-full h-full cursor-zoom-in overflow-hidden"
                                         onClick={openImageModal}
+                                        onMouseMove={handleImageMouseMove}
+                                        onMouseLeave={handleImageMouseLeave}
                                     >
                                         <img
+                                            ref={zoomImageRef}
                                             src={`/storage/${selectedMemo.image}`}
                                             alt={selectedMemo.title}
-                                            className="w-full h-auto object-contain max-h-[50vh] lg:max-h-[80vh]"
+                                            className={`w-full h-auto object-contain max-h-[50vh] lg:max-h-[80vh] transition-transform duration-200 ${isZooming ? 'scale-[2]' : 'scale-100'}`}
                                         />
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10">
+
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 z-20">
                                             <span className="bg-black/50 text-white px-3 py-1 rounded-md text-sm">Click to enlarge</span>
                                         </div>
                                     </div>
@@ -358,6 +388,10 @@ function MemoCard({ memo, onClick }) {
     const author = memo.author || { name: 'Unknown' };
     const [authorAvatarSrc, setAuthorAvatarSrc] = useState(author.avatar ? `/storage/${author.avatar}` : null);
     const [imageError, setImageError] = useState(false);
+    const [isHovering, setIsHovering] = useState(false);
+    const cardRef = useRef(null);
+    const cardImageRef = useRef(null);
+    const rafRef = useRef(null);
 
     // Handle author avatar error
     const handleAuthorAvatarError = () => {
@@ -369,21 +403,59 @@ function MemoCard({ memo, onClick }) {
         setImageError(true);
     };
 
+    // Track mouse position for zoom effect
+    const handleMouseMove = (e) => {
+        if (!cardRef.current || !cardImageRef.current) return;
+
+        // Cancel any pending animation frame
+        if (rafRef.current) {
+            window.cancelAnimationFrame(rafRef.current);
+        }
+
+        // Use requestAnimationFrame for better performance
+        rafRef.current = window.requestAnimationFrame(() => {
+            const { left, top, width, height } = cardRef.current.getBoundingClientRect();
+
+            // Calculate position in percentage (0 to 100)
+            const x = Math.max(0, Math.min(100, ((e.clientX - left) / width) * 100));
+            const y = Math.max(0, Math.min(100, ((e.clientY - top) / height) * 100));
+
+            // Update the transform origin directly on the element
+            if (cardImageRef.current) {
+                cardImageRef.current.style.transformOrigin = `${x}% ${y}%`;
+            }
+        });
+    };
+
+    // Clean up requestAnimationFrame on unmount
+    useEffect(() => {
+        return () => {
+            if (rafRef.current) {
+                window.cancelAnimationFrame(rafRef.current);
+            }
+        };
+    }, []);
+
     return (
         <Card
+            ref={cardRef}
             className="h-full group relative cursor-pointer overflow-hidden"
             onClick={onClick}
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
+            onMouseMove={handleMouseMove}
         >
             {/* Background */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10"></div>
 
             {/* Image as background - full width/height */}
             {memo.image && !imageError ? (
-                <div className="absolute inset-0 w-full h-full">
+                <div className="absolute inset-0 w-full h-full overflow-hidden">
                     <img
+                        ref={cardImageRef}
                         src={`/storage/${memo.image}`}
                         alt={memo.title}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover transition-transform duration-200 ${isHovering ? 'scale-[2]' : 'scale-100'}`}
                         onError={handleMemoImageError}
                     />
                 </div>

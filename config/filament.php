@@ -86,4 +86,16 @@ return [
 
     'livewire_loading_delay' => 'default',
 
+    'auth' => [
+        'guard' => env('FILAMENT_AUTH_GUARD', 'web'),
+        'pages' => [
+            'login' => \Filament\Http\Livewire\Auth\Login::class,
+        ],
+        'middleware' => [
+            'base' => ['web'],
+            'authenticated' => ['auth'],
+        ],
+        'login_url' => 'filament.admin.login',
+    ],
+
 ];
