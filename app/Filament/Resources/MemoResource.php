@@ -56,19 +56,6 @@ class MemoResource extends Resource
                         Forms\Components\TextInput::make('title')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('category_id')
-                            ->relationship('category', 'name')
-                            ->required()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('slug')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Textarea::make('description')
-                                    ->maxLength(65535),
-                            ]),
 
                         Forms\Components\Hidden::make('author_id')
                             ->default(fn () => auth()->id()),
@@ -117,18 +104,10 @@ class MemoResource extends Resource
                             ->maxSize(5120)
                             ->nullable()
                             ->hiddenLabel()
+                            ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/gif'])
+                            ->preserveFilenames()
                             ->saveUploadedFileUsing(function ($file) {
-                                // Log the file information
-                                Log::info('File upload attempt', [
-                                    'name' => $file->getClientOriginalName(),
-                                    'size' => $file->getSize(),
-                                    'mime' => $file->getMimeType(),
-                                ]);
-
-                                // Default behavior - store and return path
-                                $path = $file->store('memos', 'public');
-                                Log::info('File stored at path', ['path' => $path]);
-                                return $path;
+                                return $file->store('memos', 'public');
                             }),
                     ])
                     ->collapsible(),
@@ -149,10 +128,6 @@ class MemoResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->limit(30),
-
-                Tables\Columns\TextColumn::make('category.name')
-                    ->sortable()
-                    ->searchable(),
 
                 Tables\Columns\TextColumn::make('author.name')
                     ->searchable(),
@@ -203,8 +178,8 @@ class MemoResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('category')
-                    ->relationship('category', 'name'),
+                Tables\Filters\SelectFilter::make('author')
+                    ->relationship('author', 'name'),
 
                 Tables\Filters\TernaryFilter::make('is_published'),
             ])
@@ -231,6 +206,7 @@ class MemoResource extends Resource
                                     Components\Group::make([
                                         Components\TextEntry::make('title')
                                             ->size('text-2xl font-bold'),
+
                                         Components\TextEntry::make('published_at')
                                             ->label('Published On')
                                             ->badge()
@@ -246,8 +222,6 @@ class MemoResource extends Resource
                                             ->label('Author'),
                                         Components\TextEntry::make('author.email')
                                             ->label('Author Email'),
-                                        Components\TextEntry::make('category.name')
-                                            ->label('Category'),
                                     ]),
                                 ]),
                             Components\ImageEntry::make('image')
@@ -315,5 +289,4 @@ class MemoResource extends Resource
 
         return $query;
     }
-
 }

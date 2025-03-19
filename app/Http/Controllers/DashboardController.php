@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Memo;
 use App\Models\User;
-use App\Models\Category;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -14,7 +13,7 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $memos = Memo::with(['category', 'author:id,name,avatar'])
+        $memos = Memo::with(['author:id,name,avatar'])
             ->where('is_published', true)
             ->orderBy('published_at', 'desc')
             ->get();
@@ -28,7 +27,7 @@ class DashboardController extends Controller
 
     public function memos()
     {
-        $memos = Memo::with(['category', 'author:id,name,avatar'])
+        $memos = Memo::with(['author:id,name,avatar'])
             ->where('is_published', true)
             ->orderBy('published_at', 'desc')
             ->get();

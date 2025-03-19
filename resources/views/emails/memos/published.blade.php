@@ -74,8 +74,6 @@
 
     <div class="memo-title">{{ $memo->title }}</div>
 
-    <div class="memo-category">{{ $memo->category->name }}</div>
-
     <div class="memo-content">
         {!! Str::limit(strip_tags($memo->content), 300) !!}
         @if(strlen(strip_tags($memo->content)) > 300)

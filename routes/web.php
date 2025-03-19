@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
 // Dashboard for authenticated users
 Route::get('/', function () {
     return Inertia::render('Dashboard', [
-        'memos' => App\Models\Memo::with(['category', 'author:id,name,avatar'])
+        'memos' => App\Models\Memo::with(['author:id,name,avatar'])
             ->where('is_published', true)
             ->orderBy('published_at', 'desc')
             ->get(),

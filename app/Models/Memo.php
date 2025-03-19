@@ -14,7 +14,6 @@ class Memo extends Model
         'title',
         'content',
         'author_id',
-        'category_id',
         'is_published',
         'published_at',
         'image'
@@ -28,10 +27,5 @@ class Memo extends Model
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
-    }
-
-    public function category(): BelongsTo
-    {
-        return $this->belongsTo(Category::class);
     }
 }
