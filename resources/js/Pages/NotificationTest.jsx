@@ -1,17 +1,211 @@
 import React, { useState, useEffect } from 'react';
-import { Head, router } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
+    authDomain: "memo-notifications.firebaseapp.com",
+    projectId: "memo-notifications",
+    storageBucket: "memo-notifications.firebasestorage.app",
+    messagingSenderId: "104025865077",
+    appId: "1:104025865077:web:68fd2247f8c95b9670713c"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// VAPID key for web push
+const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o";
+
+// Helper functions for messaging
+let messaging = null;
 
 export default function NotificationTest() {
+    const { auth } = usePage().props;
+    const user = auth.user;
+
     const [diagnostics, setDiagnostics] = useState([]);
     const [permission, setPermission] = useState(null);
+    const [fcmSupported, setFcmSupported] = useState(false);
+    const [fcmToken, setFcmToken] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [testResult, setTestResult] = useState(null);
+    const [isSending, setIsSending] = useState(false);
 
     const log = (message) => {
         setDiagnostics(prev => [...prev, { time: new Date().toISOString(), message }]);
+        console.log(message);
+    };
+
+    // Initialize Firebase messaging
+    const initializeMessaging = async () => {
+        log('Attempting to initialize Firebase Messaging...');
+
+        try {
+            // Check if messaging is supported
+            const isMessagingSupported = await isSupported();
+
+            if (!isMessagingSupported) {
+                log('❌ Firebase messaging is not supported in this browser');
+                setFcmSupported(false);
+                return false;
+            }
+
+            // Initialize messaging
+            messaging = getMessaging(app);
+            log('✅ Firebase messaging initialized successfully');
+            setFcmSupported(true);
+            return true;
+        } catch (error) {
+            log(`❌ Error initializing Firebase messaging: ${error.message}`);
+            setFcmSupported(false);
+            return false;
+        }
+    };
+
+    // Get FCM token
+    const getFCMToken = async () => {
+        log('Requesting FCM token...');
+
+        try {
+            if (!messaging) {
+                log('❌ Firebase messaging not initialized');
+                return null;
+            }
+
+            const currentToken = await getToken(messaging, {
+                vapidKey: FIREBASE_VAPID_KEY
+            });
+
+            if (currentToken) {
+                log(`✅ FCM token obtained: ${currentToken.substring(0, 10)}...`);
+                setFcmToken(currentToken);
+                return currentToken;
+            } else {
+                log('❌ No FCM token received');
+                return null;
+            }
+        } catch (error) {
+            log(`❌ Error getting FCM token: ${error.message}`);
+            return null;
+        }
+    };
+
+    // Register token with backend
+    const registerToken = async (token) => {
+        log('Registering FCM token with backend...');
+
+        try {
+            const response = await fetch('/api/fcm/register-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                },
+                body: JSON.stringify({
+                    token: token,
+                    user_id: user?.id
+                }),
+            });
+
+            if (response.ok) {
+                log('✅ FCM token registered with server successfully');
+                return true;
+            } else {
+                const data = await response.json();
+                log(`❌ Failed to register FCM token: ${data.message || response.statusText}`);
+                return false;
+            }
+        } catch (error) {
+            log(`❌ Error registering FCM token: ${error.message}`);
+            return false;
+        }
+    };
+
+    // Send a test notification
+    const sendTestNotification = async () => {
+        try {
+            setIsSending(true);
+
+            // Make sure you have the CSRF token
+            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // Send the request with the token
+            const response = await fetch('/api/fcm/test-notification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    token: fcmToken
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                addDiagnostic(`✅ Test notification sent successfully`);
+            } else {
+                addDiagnostic(`❌ Failed to send test notification: ${data.message}`);
+            }
+        } catch (error) {
+            console.error('Error sending test notification:', error);
+            addDiagnostic(`❌ Error sending test notification: ${error.message}`);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    // Test kreait/firebase PHP package integration
+    const testFirebaseIntegration = async () => {
+        log('🔄 Testing kreait/firebase PHP package integration...');
+        setIsLoading(true);
+
+        try {
+            // Ensure we have a token
+            const token = fcmToken || await getFCMToken();
+
+            if (!token) {
+                throw new Error('No FCM token available');
+            }
+
+            // Send token to server for validation
+            const response = await fetch('/api/fcm/validate-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                },
+                body: JSON.stringify({ token }),
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                log('✅ kreait/firebase PHP package is properly configured!');
+                setTestResult({ success: true, message: 'PHP Firebase integration working properly' });
+            } else {
+                log(`❌ kreait/firebase PHP package issue: ${result.message}`);
+                setTestResult({ success: false, message: `PHP Firebase integration issue: ${result.message}` });
+            }
+        } catch (error) {
+            log(`❌ Error testing kreait/firebase integration: ${error.message}`);
+            setTestResult({ success: false, message: `Error testing PHP integration: ${error.message}` });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const runTests = async () => {
         // Clear previous logs
         setDiagnostics([]);
+        setTestResult(null);
+        setIsLoading(true);
 
         // Basic environment checks
         log(`Protocol: ${window.location.protocol}`);
@@ -27,318 +221,174 @@ export default function NotificationTest() {
                 const registrations = await navigator.serviceWorker.getRegistrations();
                 log(`Found ${registrations.length} service worker registrations`);
 
-                registrations.forEach(reg => {
-                    log(`- Service worker scope: ${reg.scope}, state: ${reg.active ? 'active' : 'inactive'}`);
+                registrations.forEach((reg, index) => {
+                    log(`SW ${index + 1}: scope=${reg.scope}, state=${reg.active ? 'active' : 'inactive'}`);
                 });
 
-                // Try to register an existing service worker instead of a blob URL
-                log('Testing service worker registration capability...');
-                try {
-                    // Try to register our real light-push-worker.js instead of a blob
-                    const reg = await navigator.serviceWorker.register('/light-push-worker.js');
-                    log('Light push service worker registered successfully');
+                // Specifically look for our firebase-messaging-sw.js
+                const fcmServiceWorker = registrations.find(reg =>
+                    reg.scope.includes('/firebase-messaging-sw.js') ||
+                    reg.scope.endsWith('/')
+                );
 
-                    // Unregister it after the test
-                    await reg.unregister();
-                    log('Light push service worker unregistered');
-                } catch (error) {
-                    log(`Error registering light push worker: ${error.message}`);
-
-                    // Try Firebase messaging worker as fallback
-                    try {
-                        log('Trying to register firebase-messaging-sw.js as fallback...');
-                        const reg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-                        log('Firebase messaging service worker registered successfully');
-
-                        // Note: We don't unregister this one since it might be needed
-                        log('Not unregistering Firebase worker as it may be needed for app functionality');
-                    } catch (fbError) {
-                        log(`Error registering firebase worker: ${fbError.message}`);
-                        log('⚠️ Service worker registration tests failed. Your browser may have restrictions on service worker registration.');
-                    }
+                if (fcmServiceWorker) {
+                    log('✅ Firebase messaging service worker found');
+                } else {
+                    log('❌ Firebase messaging service worker not found');
                 }
             } catch (error) {
-                log(`Error during service worker test: ${error.message}`);
+                log(`Error checking service workers: ${error.message}`);
             }
         }
 
-        // Test notification permission request
-        log('Testing notification permission request...');
-        try {
-            if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
-                log('Requesting notification permission...');
-                const result = await Notification.requestPermission();
-                log(`Permission request result: ${result}`);
-                setPermission(result);
+        // Check if Firebase is available
+        if (typeof firebase !== 'undefined') {
+            log('✅ Firebase is available globally');
+
+            if (firebase.messaging) {
+                log('✅ Firebase messaging is available globally');
             } else {
-                log(`Cannot request permission - already ${Notification.permission}`);
+                log('❌ Firebase messaging is not available globally');
             }
-        } catch (error) {
-            log(`Error requesting notification permission: ${error.message}`);
+        } else {
+            log('❌ Firebase is not available globally');
         }
 
-        // Try to display a notification if possible
-        if (Notification.permission === 'granted') {
-            try {
-                log('Testing notification creation...');
-                const notification = new Notification('Test Notification', {
-                    body: 'This is a test notification',
-                    icon: '/images/logo.png'
-                });
+        // Initialize Firebase messaging (modular API)
+        await initializeMessaging();
 
-                log('Notification created successfully');
-
-                // Close the notification after 2 seconds
-                setTimeout(() => {
-                    notification.close();
-                    log('Notification closed');
-                }, 2000);
-            } catch (error) {
-                log(`Error creating notification: ${error.message}`);
-            }
+        // Get FCM token if messaging is supported
+        if (fcmSupported) {
+            await getFCMToken();
         }
+
+        setIsLoading(false);
     };
 
+    // Run tests on component mount
     useEffect(() => {
         runTests();
-    }, []);
 
-    const requestPermissionManually = async () => {
-        try {
-            log('Manually requesting notification permission...');
-            const result = await Notification.requestPermission();
-            log(`Manual permission request result: ${result}`);
-            setPermission(result);
-        } catch (error) {
-            log(`Error requesting permission: ${error.message}`);
-        }
-    };
-
-    const sendTestNotification = () => {
-        if (Notification.permission !== 'granted') {
-            log('Cannot send test notification - permission not granted');
-            return;
-        }
-
-        try {
-            log('Sending test notification...');
-            const notification = new Notification('Manual Test', {
-                body: 'This is a manual test notification',
-                icon: '/images/logo.png',
+        // Set up message listener if possible
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                log(`Received message from service worker: ${JSON.stringify(event.data)}`);
             });
-
-            log('Test notification sent successfully');
-
-            notification.onclick = () => {
-                log('Notification was clicked');
-                notification.close();
-            };
-        } catch (error) {
-            log(`Error sending test notification: ${error.message}`);
-        }
-    };
-
-    const checkVapidKey = () => {
-        try {
-            log('Checking VAPID key validity...');
-
-            // The key we're currently using in the app
-            const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o";
-
-            log(`VAPID key (first 10 chars): ${FIREBASE_VAPID_KEY.substring(0, 10)}...`);
-
-            // Check basic format - should be URL-safe base64
-            const isBase64UrlSafe = /^[A-Za-z0-9\-_]+=*$/.test(FIREBASE_VAPID_KEY);
-            log(`Key format is URL-safe base64: ${isBase64UrlSafe}`);
-
-            // Check approximate length - VAPID public keys are typically ~88 chars
-            log(`Key length: ${FIREBASE_VAPID_KEY.length} characters (should be ~88 chars)`);
-
-            if (!isBase64UrlSafe) {
-                log('⚠️ VAPID key is not in URL-safe base64 format. This could cause push registration errors.');
-            }
-
-            if (FIREBASE_VAPID_KEY.length < 80) {
-                log('⚠️ VAPID key seems too short. Typical VAPID public keys are ~88 characters.');
-            }
-
-            // Try to convert to Uint8Array (which is what the API does internally)
-            function urlBase64ToUint8Array(base64String) {
-                const padding = '='.repeat((4 - base64String.length % 4) % 4);
-                const base64 = (base64String + padding)
-                    .replace(/-/g, '+')
-                    .replace(/_/g, '/');
-
-                try {
-                    const rawData = window.atob(base64);
-                    const outputArray = new Uint8Array(rawData.length);
-
-                    for (let i = 0; i < rawData.length; ++i) {
-                        outputArray[i] = rawData.charCodeAt(i);
-                    }
-                    return outputArray;
-                } catch (error) {
-                    throw new Error(`Error converting base64 to Uint8Array: ${error.message}`);
-                }
-            }
-
-            try {
-                const convertedKey = urlBase64ToUint8Array(FIREBASE_VAPID_KEY);
-                log(`Successfully converted key to Uint8Array of length: ${convertedKey.length}`);
-                log('✅ VAPID key passes basic validation checks');
-            } catch (error) {
-                log(`⚠️ VAPID key conversion failed: ${error.message}`);
-            }
-        } catch (error) {
-            log(`Error checking VAPID key: ${error.message}`);
-        }
-    };
-
-    // Add this function to test Firebase messaging
-    const testFirebaseMessaging = async () => {
-        if (Notification.permission !== 'granted') {
-            log('Cannot test FCM - notification permission not granted');
-            return;
         }
 
-        try {
-            log('Testing Firebase Cloud Messaging...');
-
-            // Try to import Firebase modules
-            try {
-                const { initializeApp } = await import('firebase/app');
-                const { getMessaging, getToken } = await import('firebase/messaging');
-
-                log('Firebase modules imported successfully');
-
-                // Firebase config
-                const firebaseConfig = {
-                    apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
-                    messagingSenderId: "104025865077",
-                    projectId: "memo-notifications",
-                    appId: "1:104025865077:web:68fd2247f8c95b9670713c"
-                };
-
-                // Initialize Firebase
-                log('Initializing Firebase...');
-                const app = initializeApp(firebaseConfig);
-
-                // Initialize Firebase Messaging
-                log('Initializing Firebase Messaging...');
-                const messaging = getMessaging(app);
-
-                // Try to get a token
-                log('Requesting FCM token...');
-                try {
-                    const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o";
-
-                    const currentToken = await getToken(messaging, {
-                        vapidKey: FIREBASE_VAPID_KEY
-                    });
-
-                    if (currentToken) {
-                        log(`Token obtained: ${currentToken.substring(0, 15)}...`);
-
-                        // Try to send a test notification
-                        log('Sending test FCM notification...');
-
-                        router.post('/fcm/test-notification', {
-                            token: currentToken
-                        }, {
-                            preserveScroll: true,
-                            onSuccess: (page) => {
-                                if (page.props.testResult) {
-                                    log('Test notification sent successfully: ' + JSON.stringify(page.props.testResult));
-                                } else {
-                                    log('Test notification sent successfully, but no result data returned');
-                                }
-                            },
-                            onError: (errors) => {
-                                log('Failed to send test notification: ' + JSON.stringify(errors));
-                            }
-                        });
-                    } else {
-                        log('Failed to get FCM token');
-                    }
-                } catch (tokenError) {
-                    log(`Error getting token: ${tokenError.message}`);
-
-                    // Check if this is a permission error
-                    if (tokenError.message.includes('permission')) {
-                        log('This appears to be a permission issue. Make sure notifications are allowed.');
-                    }
-
-                    // Check if this is a service worker error
-                    if (tokenError.message.includes('service') && tokenError.message.includes('worker')) {
-                        log('This appears to be a service worker issue. Check if service worker registration is working properly.');
-                    }
-                }
-            } catch (firebaseError) {
-                log(`Error initializing Firebase: ${firebaseError.message}`);
+        return () => {
+            // Cleanup if needed
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener('message');
             }
-        } catch (error) {
-            log(`Error in Firebase test: ${error.message}`);
-        }
-    };
+        };
+    }, []);
 
     return (
         <>
             <Head title="Notification Test" />
+            <div className="container mx-auto py-8 px-4 max-w-4xl">
+                <h1 className="text-2xl font-bold mb-6">Firebase Notification Test</h1>
 
-            <div className="p-6 max-w-3xl mx-auto">
-                <h1 className="text-2xl font-bold mb-4">Notification Diagnostics</h1>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-white p-4 rounded-lg shadow">
+                        <h2 className="text-lg font-semibold mb-3">Environment</h2>
+                        <div className="space-y-2">
+                            <div className="flex justify-between">
+                                <span>Protocol:</span>
+                                <span className={window.location.protocol === 'https:' ? 'text-green-600' : 'text-red-600'}>
+                                    {window.location.protocol}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Notification API:</span>
+                                <span className={'Notification' in window ? 'text-green-600' : 'text-red-600'}>
+                                    {'Notification' in window ? 'Available' : 'Not Available'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Service Worker API:</span>
+                                <span className={'serviceWorker' in navigator ? 'text-green-600' : 'text-red-600'}>
+                                    {'serviceWorker' in navigator ? 'Available' : 'Not Available'}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Permission:</span>
+                                <div className={`px-3 py-1 rounded ${
+                                    permission === 'granted' ? 'bg-green-100 text-green-800' :
+                                    permission === 'denied' ? 'bg-red-100 text-red-800' :
+                                    'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                    {permission || 'unknown'}
+                                </div>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>FCM Support:</span>
+                                <span className={fcmSupported ? 'text-green-600' : 'text-red-600'}>
+                                    {fcmSupported ? 'Supported' : 'Not Supported'}
+                                </span>
+                            </div>
+                            {fcmToken && (
+                                <div className="flex flex-col">
+                                    <span className="font-medium">FCM Token:</span>
+                                    <span className="text-xs break-all mt-1 bg-gray-100 p-2 rounded">
+                                        {fcmToken.substring(0, 20)}...
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
 
-                <div className="flex gap-4 mb-6">
-                    <button
-                        onClick={runTests}
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                    >
-                        Run Tests Again
-                    </button>
+                    <div className="bg-white p-4 rounded-lg shadow">
+                        <h2 className="text-lg font-semibold mb-3">Actions</h2>
+                        <div className="space-y-3">
+                            <Button
+                                onClick={runTests}
+                                disabled={isLoading}
+                                className="w-full"
+                            >
+                                {isLoading ? 'Running Tests...' : 'Run Diagnostic Tests'}
+                            </Button>
 
-                    <button
-                        onClick={requestPermissionManually}
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                    >
-                        Request Permission
-                    </button>
+                            <Button
+                                onClick={getFCMToken}
+                                disabled={isLoading || !fcmSupported}
+                                variant="outline"
+                                className="w-full"
+                            >
+                                Request FCM Token
+                            </Button>
 
-                    <button
-                        onClick={sendTestNotification}
-                        className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-                        disabled={permission !== 'granted'}
-                    >
-                        Send Test Notification
-                    </button>
+                            <Button
+                                onClick={sendTestNotification}
+                                disabled={isSending || !fcmSupported || !fcmToken}
+                                variant="secondary"
+                                className="w-full"
+                            >
+                                Send Test Notification
+                            </Button>
 
-                    <button
-                        onClick={checkVapidKey}
-                        className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                    >
-                        Check VAPID Key
-                    </button>
+                            <Button
+                                onClick={testFirebaseIntegration}
+                                disabled={isLoading || !fcmSupported || !fcmToken}
+                                variant="secondary"
+                                className="w-full"
+                            >
+                                Test PHP Integration
+                            </Button>
+                        </div>
 
-                    <button
-                        onClick={testFirebaseMessaging}
-                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                        disabled={permission !== 'granted'}
-                    >
-                        Test Firebase Messaging
-                    </button>
-                </div>
-
-                <div className="mb-4">
-                    <h2 className="text-lg font-semibold mb-2">Current Permission Status:</h2>
-                    <div className={`px-3 py-2 rounded ${
-                        permission === 'granted' ? 'bg-green-100 text-green-800' :
-                        permission === 'denied' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                    }`}>
-                        {permission || 'unknown'}
+                        {testResult && (
+                            <div className={`mt-4 p-3 rounded ${
+                                testResult.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                                {testResult.message}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-hidden bg-white shadow">
                     <h2 className="text-lg font-semibold p-3 bg-gray-100">Diagnostic Log:</h2>
                     <div className="h-96 overflow-y-auto p-4 bg-gray-50 font-mono text-sm">
                         {diagnostics.map((entry, index) => (

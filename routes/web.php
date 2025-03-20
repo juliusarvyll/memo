@@ -3,7 +3,6 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WelcomeController;
-use App\Http\Controllers\FcmController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -225,12 +224,10 @@ Route::get('/test-valid-emails-only', function () {
 
 Route::get('/notification-test', function () {
     return Inertia::render('NotificationTest');
-})->name('notification.test');
+})->middleware(['auth'])->name('notification-test');
 
-Route::prefix('fcm')->group(function () {
-    Route::post('/register-token', [FcmController::class, 'registerToken']);
-    Route::post('/unregister-token', [FcmController::class, 'unregisterToken']);
-    Route::post('/test-notification', [FcmController::class, 'sendTestNotification']);
+Route::get('/sw-test', function () {
+    return view('sw-test');
 });
 
 

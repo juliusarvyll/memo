@@ -1,105 +1,105 @@
-// Messaging-only service worker
-console.log('[FCM-SW] Messaging service worker loading...');
-
-// Import only the minimum required Firebase scripts
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
-
-console.log('[FCM-SW] Firebase messaging scripts imported');
-
-// Minimal configuration for messaging only
-const firebaseConfig = {
-  apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
-  messagingSenderId: "104025865077",
-  projectId: "memo-notifications",
-  appId: "1:104025865077:web:68fd2247f8c95b9670713c"
-  // Removed hosting-related fields
-};
-
-// Set up the service worker with proper error handling for caching
+// Simplest possible service worker
 self.addEventListener('install', function(event) {
-  console.log('[FCM-SW] Service Worker installing...');
+  console.log('Service Worker installing...');
   self.skipWaiting();
-
-  // Don't try to cache resources in this service worker since we're only using it for FCM
-  // This avoids the "Failed to execute 'addAll' on 'Cache'" error
 });
 
 self.addEventListener('activate', function(event) {
-  console.log('[FCM-SW] Service Worker activating...');
-  event.waitUntil(self.clients.claim());
+  console.log('Service Worker activating...');
+  event.waitUntil(clients.claim());
 });
 
-// Initialize Firebase carefully
-let messaging = null;
-try {
-  firebase.initializeApp(firebaseConfig);
-  console.log('[FCM-SW] Firebase initialized successfully');
+// Basic firebase messaging integration
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
-  try {
-    messaging = firebase.messaging();
-    console.log('[FCM-SW] Firebase Messaging initialized successfully');
-  } catch (error) {
-    console.error('[FCM-SW] Error initializing Firebase Messaging:', error);
-  }
-} catch (error) {
-  console.error('[FCM-SW] Error initializing Firebase:', error);
-}
+firebase.initializeApp({
+  apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
+  authDomain: "memo-notifications.firebaseapp.com",
+  projectId: "memo-notifications",
+  messagingSenderId: "104025865077",
+  appId: "1:104025865077:web:68fd2247f8c95b9670713c"
+});
 
-// Handle background messages, but only if messaging is initialized
-if (messaging) {
-  messaging.onBackgroundMessage(function(payload) {
-    console.log('[FCM-SW] Received background message:', payload);
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage(function(payload) {
+  console.log('Received background message ', payload);
+
+  const notificationTitle = payload.notification.title;
+  const notificationOptions = {
+    body: payload.notification.body,
+    icon: '/images/logo.png'
+  };
+
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle notification clicks
+self.addEventListener('notificationclick', (event) => {
+    console.log('Notification clicked:', event);
+
+    // Close the notification
+    event.notification.close();
+
+    // Handle action clicks
+    if (event.action === 'view' && event.notification.data?.memo_id) {
+        event.waitUntil(
+            clients.openWindow(`/memos/${event.notification.data.memo_id}`)
+        );
+        return;
+    }
+
+    // Default behavior: navigate to deep link or home
+    const urlToOpen = event.notification.data?.deepLink || '/';
+
+    event.waitUntil(
+        clients.matchAll({type: 'window'}).then((windowClients) => {
+            // Check if there is already a window/tab open with the target URL
+            for (let i = 0; i < windowClients.length; i++) {
+                const client = windowClients[i];
+                if (client.url === urlToOpen && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+            // If not, open a new window/tab
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
+});
+
+// Handle push events directly with ServiceWorkerRegistration.showNotification
+self.addEventListener('push', (event) => {
+    console.log('Push message received:', event);
+
+    if (!event.data) {
+        return self.registration.showNotification('New Message', {
+            body: 'You have received a new notification',
+            icon: '/images/logo.png'
+        });
+    }
 
     try {
-      const notificationTitle = payload.notification.title;
-      const notificationOptions = {
-        body: payload.notification.body,
-        icon: '/images/logo.png',
-        badge: '/images/logo.png',
-        data: payload.data
-      };
+        // Parse the push data
+        const data = event.data.json();
 
-      console.log('[FCM-SW] Showing notification:', { title: notificationTitle });
-      return self.registration.showNotification(notificationTitle, notificationOptions);
-    } catch (error) {
-      console.error('[FCM-SW] Error showing notification:', error);
-    }
-  });
-  console.log('[FCM-SW] Background message handler registered');
-} else {
-  console.warn('[FCM-SW] Cannot register background message handler - messaging not initialized');
-}
-
-self.addEventListener('notificationclick', function(event) {
-  console.log('[FCM-SW] Notification clicked');
-  event.notification.close();
-
-  // This will open the app
-  const urlToOpen = event.notification.data?.url || '/';
-
-  event.waitUntil(
-    clients.matchAll({type: 'window'}).then(function(windowClients) {
-      // Check if there's already a window open
-      for (let i = 0; i < windowClients.length; i++) {
-        let client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        // If there's no notification object, create a default one
+        if (!data.notification) {
+            return self.registration.showNotification('New Message', {
+                body: 'You have a new message',
+                icon: '/images/logo.png',
+                data: data
+            });
         }
-      }
+    } catch (error) {
+        console.error('Error handling push event:', error);
 
-      // If no window open, open a new one
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
-  );
+        // Show a fallback notification on error
+        return self.registration.showNotification('New Notification', {
+            body: 'Something new happened in your app',
+            icon: '/images/logo.png'
+        });
+    }
 });
-
-// Create a simple fetch event handler that doesn't attempt to cache anything
-self.addEventListener('fetch', function(event) {
-  // Don't try to cache or serve from cache - just let the browser handle the request normally
-  // This ensures we don't encounter caching errors
-});
-
-console.log('[FCM-SW] Service worker initialization complete');

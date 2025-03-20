@@ -35,8 +35,4 @@ return [
         ],
     ],
 
-    'firebase' => [
-        'server_key' => env('FIREBASE_SERVER_KEY'),
-    ],
-
 ];

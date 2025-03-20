@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'avatar',
         'is_active',
+        'fcm_token',
     ];
 
     /**

@@ -21,18 +21,98 @@ import {
     AvatarFallback,
     AvatarImage,
 } from "@/components/ui/avatar";
-import {
-  app,
-  messaging,
-  getToken,
-  onMessage,
-  getTokenWithLogging,
-  initializeMessaging,
-} from '@/firebase-init';
-import { notificationsSupported, requestPermission, permissionGranted, showNotification } from '@/fallback-notifications';
+import { initializeApp } from 'firebase/app';
+import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
 
-// Use the Web Push VAPID key (not the Firebase key)
-const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o";
+// Firebase configuration
+const firebaseConfig = {
+    apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
+    authDomain: "memo-notifications.firebaseapp.com",
+    projectId: "memo-notifications",
+    storageBucket: "memo-notifications.firebasestorage.app",
+    messagingSenderId: "104025865077",
+    appId: "1:104025865077:web:68fd2247f8c95b9670713c"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize messaging when Firebase is supported
+let messaging = null;
+
+// Replace this placeholder with your actual VAPID key
+const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o"; // Replace with your actual VAPID key
+
+// Add these helper functions before your component
+// Helper function to initialize messaging
+const initializeMessaging = async () => {
+    try {
+        // Check if messaging is supported in this browser
+        const isMessagingSupported = await isSupported();
+
+        if (!isMessagingSupported) {
+            console.error('Firebase messaging is not supported in this browser');
+            return false;
+        }
+
+        // Try registering the service worker manually first
+        try {
+            console.log('Attempting to register service worker manually...');
+            await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                scope: '/firebase-cloud-messaging-push-scope'
+            });
+            console.log('Service worker registered successfully');
+        } catch (error) {
+            console.error('Service worker registration failed:', error);
+        }
+
+        // Initialize messaging
+        messaging = getMessaging(app);
+        console.log('Firebase messaging initialized successfully');
+        return true;
+    } catch (error) {
+        console.error('Error initializing Firebase messaging:', error);
+        return false;
+    }
+};
+
+// Helper functions for notifications
+const notificationsSupported = () => 'Notification' in window;
+
+const permissionGranted = () => Notification.permission === 'granted';
+
+const requestPermission = async () => {
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+};
+
+const showNotification = (title, options = {}) => {
+    try {
+        const notification = new Notification(title, options);
+        return true;
+    } catch (error) {
+        console.error('Error showing notification:', error);
+        return false;
+    }
+};
+
+// Add this function after your other helper functions
+const getTokenWithLogging = async (messagingInstance, options) => {
+    try {
+        console.log('[FIREBASE] Requesting FCM token...');
+        const token = await getToken(messagingInstance, options);
+        if (token) {
+            console.log('[FIREBASE] FCM token obtained successfully:', token.substring(0, 10) + '...');
+            return token;
+        } else {
+            console.warn('[FIREBASE] Failed to obtain FCM token - returned empty');
+            return null;
+        }
+    } catch (error) {
+        console.error('[FIREBASE] Error getting FCM token:', error);
+        return null;
+    }
+};
 
 export default function Dashboard({ memos, canLogin, canRegister }) {
     const { auth } = usePage().props;
@@ -153,6 +233,15 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                 // Set up message handler for foreground messages
                 const unsubscribe = onMessage(messaging, (payload) => {
                     console.log('Message received in foreground:', payload);
+
+                    // Log this event to Firebase Analytics if available
+                    if (typeof firebase !== 'undefined' && firebase.analytics) {
+                        firebase.analytics().logEvent('notification_received', {
+                            notification_id: payload.messageId,
+                            notification_title: payload.notification?.title || 'Unknown',
+                            source: 'fcm'
+                        });
+                    }
 
                     // Register a notification using the Notification API
                     if ('Notification' in window && Notification.permission === 'granted') {
@@ -472,13 +561,10 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     // PWA install prompt handler
     useEffect(() => {
         const handleBeforeInstallPrompt = (e) => {
-            // Prevent the default prompt
+            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
-            // Save the event to trigger it later
-            setDeferredPrompt(e);
-            // Show the install button
+            // Just set installable flag, don't stash the event
             setIsInstallable(true);
-            console.log('📱 App is installable as PWA');
         };
 
         window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -783,9 +869,61 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         }
     }, []);
 
-    // Add this function
+    // Add a function to test kreait/firebase PHP package integration
+    const testKreaitFirebaseIntegration = async () => {
+        console.log('🔄 Testing kreait/firebase PHP package integration...');
+
+        try {
+            // First check if we have Firebase messaging available
+            if (!window.firebase || !firebase.messaging) {
+                console.error('❌ Firebase messaging not available in the browser');
+                return { success: false, message: 'Firebase messaging not available' };
+            }
+
+            // Try to get the current FCM token
+            const messaging = firebase.messaging();
+            const token = await messaging.getToken({
+                vapidKey: FIREBASE_VAPID_KEY
+            });
+
+            if (!token) {
+                console.error('❌ Could not obtain FCM token');
+                return { success: false, message: 'Could not obtain FCM token' };
+            }
+
+            console.log('✅ FCM token obtained:', token.substring(0, 10) + '...');
+
+            // Now test if the server (kreait/firebase) can validate this token
+            console.log('🔄 Sending token to server for validation...');
+            const response = await fetch('/api/fcm/validate-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                },
+                body: JSON.stringify({ token })
+            });
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+                console.log('✅ kreait/firebase PHP package is properly configured!');
+                console.log('✅ Server response:', result.message);
+                return { success: true, message: result.message };
+            } else {
+                console.error('❌ kreait/firebase PHP package issue:', result.message);
+                return { success: false, message: result.message };
+            }
+        } catch (error) {
+            console.error('❌ Error testing kreait/firebase integration:', error.message);
+            return { success: false, message: error.message };
+        }
+    };
+
+    // Modify the runFcmDiagnostics function to use the new test function
     const runFcmDiagnostics = async () => {
         console.log('========= FCM DIAGNOSTICS =========');
+        console.log('📋 FIREBASE INITIALIZATION CHECK');
 
         // Check basic requirements
         console.log('Notification API supported:', 'Notification' in window);
@@ -809,14 +947,17 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         console.log('Firebase app initialized:', !!app);
         console.log('Firebase messaging initialized:', !!messaging);
 
-        // Try to get Firebase token
-        if (messaging) {
-            try {
-                const token = await getToken(messaging, { vapidKey: "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o"});
-                console.log('FCM token obtained:', token ? 'Yes (first 10 chars: ' + token.substring(0, 10) + '...)' : 'No');
-            } catch (error) {
-                console.error('Error getting token:', error);
-            }
+        // Additional logs for kreait/firebase integration
+        console.log('🔥 Kreait/Firebase Integration:');
+
+        // Test kreait/firebase PHP package integration
+        const kreaitTestResult = await testKreaitFirebaseIntegration();
+
+        // Log the result
+        if (kreaitTestResult.success) {
+            console.log('✅ kreait/firebase PHP package integration successful');
+        } else {
+            console.warn('⚠️ kreait/firebase PHP package integration issue:', kreaitTestResult.message);
         }
 
         console.log('================================');
@@ -827,24 +968,6 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         // Run the diagnostics after a short delay to allow other initializations
         setTimeout(runFcmDiagnostics, 3000);
     }, []);
-
-    // Define getTokenWithLogging locally if it's not available from imports
-    const getTokenWithLogging = async (messagingInstance, options) => {
-        try {
-            console.log('[FIREBASE] Requesting FCM token...');
-            const token = await getToken(messagingInstance, options);
-            if (token) {
-                console.log('[FIREBASE] FCM token obtained successfully:', token.substring(0, 10) + '...');
-                return token;
-            } else {
-                console.warn('[FIREBASE] Failed to obtain FCM token - returned empty');
-                return null;
-            }
-        } catch (error) {
-            console.error('[FIREBASE] Error getting FCM token:', error);
-            return null;
-        }
-    };
 
     return (
         <>
