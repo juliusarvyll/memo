@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Models\FcmToken;
 use App\Services\FcmService;
+use Inertia\Inertia;
 
 class FcmController extends Controller
 {
@@ -57,11 +58,21 @@ class FcmController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            return Inertia::render('NotificationTest', [
+                'testResult' => [
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ]
+            ]);
         }
 
         try {
@@ -81,21 +92,48 @@ class FcmController extends Controller
             );
 
             if ($result) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Test notification sent successfully'
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Test notification sent successfully'
+                    ]);
+                }
+
+                return Inertia::render('NotificationTest', [
+                    'testResult' => [
+                        'success' => true,
+                        'message' => 'Test notification sent successfully'
+                    ]
                 ]);
             } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to send test notification'
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Failed to send test notification'
+                    ]);
+                }
+
+                return Inertia::render('NotificationTest', [
+                    'testResult' => [
+                        'success' => false,
+                        'message' => 'Failed to send test notification'
+                    ]
                 ]);
             }
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error sending test notification: ' . $e->getMessage()
-            ], 500);
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error sending test notification: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return Inertia::render('NotificationTest', [
+                'testResult' => [
+                    'success' => false,
+                    'message' => 'Error sending test notification: ' . $e->getMessage()
+                ]
+            ]);
         }
     }
 }

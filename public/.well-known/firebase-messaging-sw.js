@@ -1,11 +1,15 @@
+// Create this file with the same content as your firebase-messaging-sw.js
+// This location is sometimes needed for proper service worker registration
+
+// Copy of the main service worker for proper discovery
 // Messaging-only service worker
-console.log('[FCM-SW] Messaging service worker loading...');
+console.log('[FCM-SW-WELLKNOWN] Service worker loading...');
 
 // Import only the minimum required Firebase scripts
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-console.log('[FCM-SW] Firebase messaging scripts imported');
+console.log('[FCM-SW-WELLKNOWN] Firebase messaging scripts imported');
 
 // Minimal configuration for messaging only
 const firebaseConfig = {
@@ -18,15 +22,14 @@ const firebaseConfig = {
 
 // Set up the service worker with proper error handling for caching
 self.addEventListener('install', function(event) {
-  console.log('[FCM-SW] Service Worker installing...');
+  console.log('[FCM-SW-WELLKNOWN] Service Worker installing...');
   self.skipWaiting();
 
   // Don't try to cache resources in this service worker since we're only using it for FCM
-  // This avoids the "Failed to execute 'addAll' on 'Cache'" error
 });
 
 self.addEventListener('activate', function(event) {
-  console.log('[FCM-SW] Service Worker activating...');
+  console.log('[FCM-SW-WELLKNOWN] Service Worker activating...');
   event.waitUntil(self.clients.claim());
 });
 
@@ -34,22 +37,22 @@ self.addEventListener('activate', function(event) {
 let messaging = null;
 try {
   firebase.initializeApp(firebaseConfig);
-  console.log('[FCM-SW] Firebase initialized successfully');
+  console.log('[FCM-SW-WELLKNOWN] Firebase initialized successfully');
 
   try {
     messaging = firebase.messaging();
-    console.log('[FCM-SW] Firebase Messaging initialized successfully');
+    console.log('[FCM-SW-WELLKNOWN] Firebase Messaging initialized successfully');
   } catch (error) {
-    console.error('[FCM-SW] Error initializing Firebase Messaging:', error);
+    console.error('[FCM-SW-WELLKNOWN] Error initializing Firebase Messaging:', error);
   }
 } catch (error) {
-  console.error('[FCM-SW] Error initializing Firebase:', error);
+  console.error('[FCM-SW-WELLKNOWN] Error initializing Firebase:', error);
 }
 
 // Handle background messages, but only if messaging is initialized
 if (messaging) {
   messaging.onBackgroundMessage(function(payload) {
-    console.log('[FCM-SW] Received background message:', payload);
+    console.log('[FCM-SW-WELLKNOWN] Received background message:', payload);
 
     try {
       const notificationTitle = payload.notification.title;
@@ -60,19 +63,19 @@ if (messaging) {
         data: payload.data
       };
 
-      console.log('[FCM-SW] Showing notification:', { title: notificationTitle });
+      console.log('[FCM-SW-WELLKNOWN] Showing notification:', { title: notificationTitle });
       return self.registration.showNotification(notificationTitle, notificationOptions);
     } catch (error) {
-      console.error('[FCM-SW] Error showing notification:', error);
+      console.error('[FCM-SW-WELLKNOWN] Error showing notification:', error);
     }
   });
-  console.log('[FCM-SW] Background message handler registered');
+  console.log('[FCM-SW-WELLKNOWN] Background message handler registered');
 } else {
-  console.warn('[FCM-SW] Cannot register background message handler - messaging not initialized');
+  console.warn('[FCM-SW-WELLKNOWN] Cannot register background message handler - messaging not initialized');
 }
 
 self.addEventListener('notificationclick', function(event) {
-  console.log('[FCM-SW] Notification clicked');
+  console.log('[FCM-SW-WELLKNOWN] Notification clicked');
   event.notification.close();
 
   // This will open the app
@@ -98,8 +101,7 @@ self.addEventListener('notificationclick', function(event) {
 
 // Create a simple fetch event handler that doesn't attempt to cache anything
 self.addEventListener('fetch', function(event) {
-  // Don't try to cache or serve from cache - just let the browser handle the request normally
-  // This ensures we don't encounter caching errors
+  // Don't try to cache or serve from cache
 });
 
-console.log('[FCM-SW] Service worker initialization complete');
+console.log('[FCM-SW-WELLKNOWN] Service worker initialization complete');

@@ -1,29 +1,24 @@
-// Import the functions you need from the SDKs you need
+// Import only what you need for messaging
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage, isSupported } from "firebase/messaging";
 
-// Your web app's Firebase configuration
+// Bare minimum Firebase configuration for FCM only
 const firebaseConfig = {
     apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
-    authDomain: "memo-notifications.firebaseapp.com",
+    authDomain: "...",
     projectId: "memo-notifications",
-    storageBucket: "memo-notifications.firebasestorage.app",
     messagingSenderId: "104025865077",
     appId: "1:104025865077:web:68fd2247f8c95b9670713c"
+    // Remove hosting-related fields like authDomain and storageBucket
 };
 
-console.log('[FIREBASE] Initializing Firebase with config:', {
-    apiKey: firebaseConfig.apiKey,
-    projectId: firebaseConfig.projectId,
-    messagingSenderId: firebaseConfig.messagingSenderId,
-    appId: firebaseConfig.appId.split(':')[0] + ':***' // Only show part of app ID for security
-});
+console.log('[FIREBASE] Initializing Firebase with messaging-only config');
 
 // Initialize Firebase
 let app;
 try {
     app = initializeApp(firebaseConfig);
-    console.log('[FIREBASE] Firebase app initialized successfully');
+    console.log('[FIREBASE] Firebase app initialized for messaging only');
 } catch (error) {
     console.error('[FIREBASE] Error initializing Firebase app:', error);
 }
@@ -109,6 +104,24 @@ const setupMessagingListener = (messagingInstance) => {
     console.log('[FIREBASE] Foreground message listener set up successfully');
 };
 
+// Register service worker early
+const registerServiceWorker = async () => {
+    if ('serviceWorker' in navigator) {
+        try {
+            console.log('[FIREBASE] Registering service worker...');
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                scope: '/'
+            });
+            console.log('[FIREBASE] Service worker registered:', registration);
+            return registration;
+        } catch (error) {
+            console.error('[FIREBASE] Service worker registration failed:', error);
+            return null;
+        }
+    }
+    return null;
+};
+
 export {
     app,
     messaging,
@@ -117,5 +130,6 @@ export {
     onMessage,
     initializeMessaging,
     checkFirebaseConnection,
-    setupMessagingListener
+    setupMessagingListener,
+    registerServiceWorker
 };

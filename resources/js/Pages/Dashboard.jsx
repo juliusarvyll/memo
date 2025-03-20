@@ -21,7 +21,18 @@ import {
     AvatarFallback,
     AvatarImage,
 } from "@/components/ui/avatar";
-import { app, messaging, getToken, onMessage, initializeMessaging } from '@/firebase-init';
+import {
+  app,
+  messaging,
+  getToken,
+  onMessage,
+  getTokenWithLogging,
+  initializeMessaging,
+} from '@/firebase-init';
+import { notificationsSupported, requestPermission, permissionGranted, showNotification } from '@/fallback-notifications';
+
+// Use the Web Push VAPID key (not the Firebase key)
+const FIREBASE_VAPID_KEY = "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o";
 
 export default function Dashboard({ memos, canLogin, canRegister }) {
     const { auth } = usePage().props;
@@ -58,79 +69,122 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
     const isMobile = viewportWidth < 640; // sm breakpoint in Tailwind
 
+    // Updated service worker registration with better error handling
+    const registerServiceWorker = async () => {
+        try {
+            console.log('[SW] Attempting to register service worker...');
+            if ('serviceWorker' in navigator) {
+                // First unregister existing service workers to avoid conflicts
+                const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+                for (let reg of existingRegistrations) {
+                    if (reg.scope.includes('firebase-messaging-sw.js')) {
+                        console.log('[SW] Unregistering existing service worker:', reg.scope);
+                        await reg.unregister();
+                    }
+                }
+
+                // Now register a fresh service worker
+                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+                    scope: '/'
+                });
+                console.log('[SW] Service worker registered successfully:', registration.scope);
+
+                // Wait for the service worker to be activated
+                if (registration.installing) {
+                    console.log('[SW] Service worker installing...');
+                    const serviceWorker = registration.installing;
+
+                    // Listen for state changes
+                    serviceWorker.addEventListener('statechange', function() {
+                        console.log('[SW] Service worker state changed to:', serviceWorker.state);
+                    });
+                }
+
+                return registration;
+            } else {
+                console.error('[SW] Service workers not supported in this browser');
+                return null;
+            }
+        } catch (error) {
+            console.error('[SW] Error registering service worker:', error.message);
+            return null;
+        }
+    };
+
+    // Now modify your checkFCMSupport function to include this registration
+    const checkFCMSupport = async () => {
+        try {
+            // Check if the browser supports notifications
+            if (!('Notification' in window)) {
+                console.log('This browser does not support notifications');
+                setNotificationError('This browser does not support notifications');
+                return;
+            }
+
+            // Check if service workers are supported and register
+            const swRegistration = await registerServiceWorker();
+            if (!swRegistration) {
+                setNotificationError('Service worker registration failed');
+                return;
+            }
+
+            // Check if the page is served over HTTPS or localhost
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                console.log('Firebase Messaging requires HTTPS');
+                setNotificationError('Push notifications require HTTPS');
+                return;
+            }
+
+            // Try to initialize Firebase Messaging
+            const isMessagingInitialized = await initializeMessaging();
+
+            if (!isMessagingInitialized) {
+                console.log('Failed to initialize Firebase Messaging');
+                setNotificationError('Push notifications not available in this browser');
+                return;
+            }
+
+            setFcmSupported(true);
+
+            // Check current permission status
+            if (Notification.permission === 'granted') {
+                setNotificationsEnabled(true);
+
+                // Set up message handler for foreground messages
+                const unsubscribe = onMessage(messaging, (payload) => {
+                    console.log('Message received in foreground:', payload);
+
+                    // Register a notification using the Notification API
+                    if ('Notification' in window && Notification.permission === 'granted') {
+                        const notification = new Notification(
+                            payload.notification.title,
+                            {
+                                body: payload.notification.body,
+                                icon: '/images/logo.png'
+                            }
+                        );
+                        notification.onclick = () => {
+                            window.focus();
+                            notification.close();
+                        };
+                    }
+
+                    // Still refresh memos to show new content
+                    refreshMemos();
+                });
+
+                return () => {
+                    if (unsubscribe) unsubscribe();
+                };
+            }
+        } catch (error) {
+            console.error('Error checking FCM support:', error);
+            setNotificationError('Error initializing notifications: ' + error.message);
+        }
+    };
+
     // Check for Firebase Messaging support
     useEffect(() => {
-        const checkFCMSupport = async () => {
-            try {
-                // Check if the browser supports notifications
-                if (!('Notification' in window)) {
-                    console.log('This browser does not support notifications');
-                    setNotificationError('This browser does not support notifications');
-                    return;
-                }
-
-                // Check if service workers are supported
-                if (!('serviceWorker' in navigator)) {
-                    console.log('This browser does not support service workers');
-                    setNotificationError('This browser does not support service workers');
-                    return;
-                }
-
-                // Check if the page is served over HTTPS or localhost
-                if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
-                    console.log('Firebase Messaging requires HTTPS');
-                    setNotificationError('Push notifications require HTTPS');
-                    return;
-                }
-
-                // Try to initialize Firebase Messaging
-                const isMessagingInitialized = await initializeMessaging();
-
-                if (!isMessagingInitialized) {
-                    console.log('Failed to initialize Firebase Messaging');
-                    setNotificationError('Push notifications not available in this browser');
-                    return;
-                }
-
-                setFcmSupported(true);
-
-                // Check current permission status
-                if (Notification.permission === 'granted') {
-                    setNotificationsEnabled(true);
-
-                    // Set up message handler for foreground messages
-                    const unsubscribe = onMessage(messaging, (payload) => {
-                        console.log('Message received in foreground:', payload);
-
-                        // Register a notification using the Notification API
-                        if ('Notification' in window && Notification.permission === 'granted') {
-                            const notification = new Notification(
-                                payload.notification.title,
-                                {
-                                    body: payload.notification.body,
-                                    icon: '/images/logo.png'
-                                }
-                            );
-                            notification.onclick = () => {
-                                window.focus();
-                                notification.close();
-                            };
-                        }
-
-                        // Still refresh memos to show new content
-                        refreshMemos();
-                    });
-
-                    return () => {
-                        if (unsubscribe) unsubscribe();
-                    };
-                }
-            } catch (error) {
-                console.error('Error checking FCM support:', error);
-                setNotificationError('Error initializing notifications: ' + error.message);
-            }
-        };
-
         checkFCMSupport();
     }, []);
 
@@ -160,7 +214,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
             }
 
             const currentToken = await getToken(messaging, {
-                vapidKey: 'BI0Twc2bnQ2LwUKrZ1f3e-vAEQQ74bTzLd1IRqY9b0sLN3_SfFWDnHx-wVAO0Qi8RSoP0MpYR4NlqWHVhQkARPQ'
+                vapidKey: FIREBASE_VAPID_KEY
             });
 
             if (currentToken) {
@@ -557,62 +611,74 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
     // Function to send a test notification
     const sendTestNotification = async () => {
-        if (!notificationsEnabled) {
-            console.log('Notifications not enabled');
-            return;
-        }
-
         setSendingTestNotification(true);
 
         try {
-            // If FCM isn't supported or messaging isn't initialized, fall back to a basic notification
-            if (!fcmSupported || !messaging) {
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    const notification = new Notification(
-                        'SPUP eMemo Test Notification',
-                        {
-                            body: 'This is a test notification from SPUP eMemo.',
-                            icon: '/images/logo.png'
-                        }
-                    );
-                    notification.onclick = () => {
-                        window.focus();
-                        notification.close();
-                    };
-                    console.log('Test notification sent successfully (fallback)');
+            // First try using FCM
+            if (fcmSupported && messaging) {
+                try {
+                    console.log('Attempting to use FCM for test notification...');
+
+                    // Log VAPID key format for debugging (only first few chars)
+                    console.log('Using VAPID key:', FIREBASE_VAPID_KEY.substring(0, 10) + '...');
+
+                    // Use getToken directly instead of getTokenWithLogging
+                    const currentToken = await getTokenWithLogging(messaging, {
+                        vapidKey: FIREBASE_VAPID_KEY
+                    });
+
+                    if (!currentToken) {
+                        throw new Error('Could not retrieve FCM token');
+                    }
+
+                    // Send to server
+                    const response = await fetch('/api/fcm/test-notification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token: currentToken, user_id: user?.id }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Server responded with ${response.status}`);
+                    }
+
+                    console.log('FCM test notification sent successfully');
+                    return;
+                } catch (error) {
+                    console.error('FCM notification failed, trying fallback:', error);
+                    // Continue to fallback
                 }
-                setSendingTestNotification(false);
-                return;
             }
 
-            const currentToken = await getToken(messaging);
+            // Fallback to simple notifications if FCM failed
+            if (notificationsSupported()) {
+                if (!permissionGranted()) {
+                    const granted = await requestPermission();
+                    if (!granted) {
+                        throw new Error('Notification permission denied');
+                    }
+                }
 
-            if (!currentToken) {
-                console.error('No FCM token available');
-                setSendingTestNotification(false);
-                return;
-            }
+                // Show a local notification
+                const success = showNotification(
+                    'SPUP eMemo Test Notification',
+                    {
+                        body: 'This is a test notification from SPUP eMemo (Fallback).',
+                        tag: 'test-notification'
+                    }
+                );
 
-            const response = await fetch('/api/fcm/test-notification', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    token: currentToken,
-                    user_id: user?.id
-                }),
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                console.log('Test notification sent successfully');
+                if (success) {
+                    console.log('Fallback notification shown successfully');
+                } else {
+                    throw new Error('Failed to show fallback notification');
+                }
             } else {
-                console.error('Failed to send test notification:', data.message);
+                throw new Error('Notifications not supported in this browser');
             }
         } catch (error) {
             console.error('Error sending test notification:', error);
+            setNotificationError(error.message);
         } finally {
             setSendingTestNotification(false);
         }
@@ -692,6 +758,91 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         } catch (error) {
             console.error('Error requesting notification permission:', error);
             return false;
+        }
+    };
+
+    // Add this new useEffect
+    useEffect(() => {
+        // Unregister any Firebase Hosting service workers
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                registrations.forEach(registration => {
+                    // Keep only our firebase-messaging-sw.js service worker
+                    if (registration.scope.includes('firebase-cloud-messaging') ||
+                        (registration.scope.includes('firebase') &&
+                         !registration.scope.includes('firebase-messaging-sw.js'))) {
+                        console.log('[CLEANUP] Unregistering Firebase service worker:', registration.scope);
+                        registration.unregister().then(() => {
+                            console.log('[CLEANUP] Successfully unregistered Firebase service worker');
+                        });
+                    }
+                });
+            }).catch(error => {
+                console.error('[CLEANUP] Error unregistering service workers:', error);
+            });
+        }
+    }, []);
+
+    // Add this function
+    const runFcmDiagnostics = async () => {
+        console.log('========= FCM DIAGNOSTICS =========');
+
+        // Check basic requirements
+        console.log('Notification API supported:', 'Notification' in window);
+        console.log('ServiceWorker API supported:', 'serviceWorker' in navigator);
+        console.log('Current permission:', Notification.permission);
+        console.log('Using HTTPS:', window.location.protocol === 'https:');
+
+        // Check service worker registration
+        try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            console.log('Service worker registrations:', registrations.length);
+            registrations.forEach(reg => {
+                console.log('- Registration scope:', reg.scope);
+                console.log('- Registration state:', reg.active ? 'active' : 'inactive');
+            });
+        } catch (error) {
+            console.error('Error checking service worker registrations:', error);
+        }
+
+        // Check Firebase initialization
+        console.log('Firebase app initialized:', !!app);
+        console.log('Firebase messaging initialized:', !!messaging);
+
+        // Try to get Firebase token
+        if (messaging) {
+            try {
+                const token = await getToken(messaging, { vapidKey: "BGZrqo2reX29cRLUfpir0-hsHGqA0zEeNcHbggbeVcaVg2tvdfTw55bKZQpdRsDSe3hvwvivmMViIRvKCzA7k3o"});
+                console.log('FCM token obtained:', token ? 'Yes (first 10 chars: ' + token.substring(0, 10) + '...)' : 'No');
+            } catch (error) {
+                console.error('Error getting token:', error);
+            }
+        }
+
+        console.log('================================');
+    };
+
+    // Call this function from a useEffect
+    useEffect(() => {
+        // Run the diagnostics after a short delay to allow other initializations
+        setTimeout(runFcmDiagnostics, 3000);
+    }, []);
+
+    // Define getTokenWithLogging locally if it's not available from imports
+    const getTokenWithLogging = async (messagingInstance, options) => {
+        try {
+            console.log('[FIREBASE] Requesting FCM token...');
+            const token = await getToken(messagingInstance, options);
+            if (token) {
+                console.log('[FIREBASE] FCM token obtained successfully:', token.substring(0, 10) + '...');
+                return token;
+            } else {
+                console.warn('[FIREBASE] Failed to obtain FCM token - returned empty');
+                return null;
+            }
+        } catch (error) {
+            console.error('[FIREBASE] Error getting FCM token:', error);
+            return null;
         }
     };
 
@@ -925,6 +1076,19 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                         </div>
                     </DialogContent>
                 </Dialog>
+            )}
+
+            {/* Add this somewhere visible in your UI */}
+            {isInstallable && (
+                <button
+                    onClick={installApp}
+                    className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                    </svg>
+                    Install App
+                </button>
             )}
         </>
     );
