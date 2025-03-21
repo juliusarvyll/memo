@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'avatar',
         'is_active',
+        'fcm_token',
     ];
 
     /**
@@ -49,6 +50,16 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    /**
+     * Route notifications for the FCM channel.
+     *
+     * @return string|null
+     */
+    public function routeNotificationForFcm()
+    {
+        return $this->fcm_token;
     }
 
     public function memos(): HasMany

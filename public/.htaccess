@@ -23,3 +23,11 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+<Files "firebase-messaging-sw.js">
+    Header set Service-Worker-Allowed "/"
+    Header set Cache-Control "max-age=0"
+</Files>
+
+# Ensure JS files have the right MIME type
+AddType application/javascript .js

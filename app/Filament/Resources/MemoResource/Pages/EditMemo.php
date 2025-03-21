@@ -10,6 +10,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\MemoPublished;
 use App\Models\User;
+use App\Notifications\MemoNotification;
 
 class EditMemo extends EditRecord
 {
@@ -50,6 +51,79 @@ class EditMemo extends EditRecord
         // Check if the memo was just published
         if ($memo->is_published && $memo->wasChanged('is_published')) {
             $this->sendMemoNotification($memo);
+            $this->sendFcmNotifications($memo);
+        }
+        // Check if the content was updated while published
+        elseif ($memo->is_published && ($memo->wasChanged('title') || $memo->wasChanged('content'))) {
+            $this->sendFcmNotifications($memo, 'updated');
+        }
+    }
+
+    /**
+     * Send FCM notifications to users about a memo
+     */
+    protected function sendFcmNotifications($memo, $action = 'published'): void
+    {
+        try {
+            // Get all users with FCM tokens
+            $users = User::whereNotNull('fcm_token')->get();
+
+            // Check if we have any users to notify
+            if ($users->isEmpty()) {
+                Log::info("No FCM tokens found for any users, skipping FCM notifications for $action");
+                return;
+            }
+
+            // Log information
+            Log::info("Sending FCM notifications for $action memo", [
+                'memo_id' => $memo->id,
+                'memo_title' => $memo->title,
+                'action' => $action,
+                'recipient_count' => $users->count()
+            ]);
+
+            // Create notification
+            $notification = new MemoNotification($memo, $action);
+
+            // Set a reasonable timeout for each notification to prevent long-running requests
+            ini_set('max_execution_time', 300); // 5 minutes
+
+            // Send in smaller batches to prevent timeouts
+            $users->chunk(10)->each(function ($userBatch) use ($notification, $memo, $action) {
+                foreach ($userBatch as $user) {
+                    try {
+                        $user->notify($notification);
+
+                        Log::info('FCM notification sent to user', [
+                            'user_id' => $user->id,
+                            'memo_id' => $memo->id,
+                            'action' => $action
+                        ]);
+
+                        // Short sleep to prevent rate limiting
+                        usleep(100000); // 0.1 seconds
+                    } catch (\Exception $e) {
+                        Log::error('Failed to send FCM notification to user', [
+                            'user_id' => $user->id,
+                            'memo_id' => $memo->id,
+                            'action' => $action,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
+            });
+
+            Log::info("Completed sending FCM notifications for $action memo", [
+                'memo_id' => $memo->id,
+                'memo_title' => $memo->title
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending FCM notifications', [
+                'memo_id' => $memo->id,
+                'action' => $action,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
         }
     }
 

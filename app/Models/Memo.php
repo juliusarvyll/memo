@@ -30,8 +30,22 @@ class Memo extends Model
         return $this->belongsTo(User::class, 'author_id');
     }
 
-    public function category(): BelongsTo
+    /**
+     * Publish the memo
+     */
+    public function publish()
     {
-        return $this->belongsTo(Category::class);
+        if (!$this->is_published) {
+            $this->is_published = true;
+            $this->published_at = now();
+            $this->save();
+
+            // Dispatch the MemoPublished event
+            event(new \App\Events\MemoPublished($this));
+
+            return true;
+        }
+
+        return false;
     }
 }
