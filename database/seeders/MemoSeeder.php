@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Category;
 use App\Models\Memo;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -26,6 +27,9 @@ class MemoSeeder extends Seeder
         // Ensure the images directory exists
         Storage::disk('public')->makeDirectory('memos');
 
+        // Get all categories
+        $categories = Category::all();
+
         // Get authors (users with author role)
         $authors = User::role('author')->get();
         $editors = User::role('editor')->get();
@@ -42,6 +46,7 @@ class MemoSeeder extends Seeder
             Memo::create([
                 'title' => $this->getMemoTitle($faker),
                 'content' => $this->getMemoContent($faker),
+                'category_id' => $categories->random()->id,
                 'author_id' => $potentialAuthors->random()->id,
                 'image' => $imagePath,
                 'is_published' => $faker->boolean(80), // 80% chance of being published
@@ -57,12 +62,14 @@ class MemoSeeder extends Seeder
 
         if ($testAuthor) {
             foreach (range(1, 5) as $i) {
+                $category = $categories->random();
                 $isPublished = $i <= 3; // 3 published, 2 drafts
 
                 Memo::create([
                     'title' => "Test Author Memo #{$i}",
                     'content' => "This is test content for the author test memo #{$i}. " . fake()->paragraphs(2, true),
                     'author_id' => $testAuthor->id,
+                    'category_id' => $category->id,
                     'is_published' => $isPublished,
                     'published_at' => $isPublished ? Carbon::now()->subDays($i) : null,
                     'created_at' => Carbon::now()->subDays($i + 1),
@@ -73,12 +80,14 @@ class MemoSeeder extends Seeder
 
         if ($testEditor) {
             foreach (range(1, 5) as $i) {
+                $category = $categories->random();
                 $isPublished = $i <= 4; // 4 published, 1 draft
 
                 Memo::create([
                     'title' => "Test Editor Memo #{$i}",
                     'content' => "This is test content for the editor test memo #{$i}. " . fake()->paragraphs(2, true),
                     'author_id' => $testEditor->id,
+                    'category_id' => $category->id,
                     'is_published' => $isPublished,
                     'published_at' => $isPublished ? Carbon::now()->subDays($i) : null,
                     'created_at' => Carbon::now()->subDays($i + 1),

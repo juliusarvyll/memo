@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\MemoResource\Widgets;
 
 use App\Models\Memo;
+use App\Models\Category;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
@@ -20,6 +21,14 @@ class MemoOverview extends BaseWidget
 
         // Get recent activity
         $recentMemos = Memo::where('created_at', '>=', Carbon::now()->subDays(7))->count();
+
+        // Get category with most memos
+        $popularCategory = Category::withCount('memos')
+            ->orderBy('memos_count', 'desc')
+            ->first();
+
+        $popularCategoryName = $popularCategory ? $popularCategory->name : 'None';
+        $popularCategoryCount = $popularCategory ? $popularCategory->memos_count : 0;
 
         return [
             Stat::make('Total Memos', $totalMemos)
@@ -45,6 +54,11 @@ class MemoOverview extends BaseWidget
                 ->description('Created in the last 7 days')
                 ->descriptionIcon('heroicon-m-arrow-trending-up')
                 ->color('info'),
+
+            Stat::make('Popular Category', $popularCategoryName)
+                ->description("{$popularCategoryCount} memos")
+                ->descriptionIcon('heroicon-m-star')
+                ->color('primary'),
         ];
     }
 }
