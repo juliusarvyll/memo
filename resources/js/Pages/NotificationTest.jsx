@@ -99,7 +99,7 @@ export default function NotificationTest() {
         log('Registering FCM token with backend...');
 
         try {
-            const response = await fetch('/api/fcm/register-token', {
+            const response = await fetch('/fcm/register-token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -130,15 +130,23 @@ export default function NotificationTest() {
         try {
             setIsSending(true);
 
-            // Make sure you have the CSRF token
-            const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+            // Make sure you have a token
+            if (!fcmToken) {
+                addDiagnostic('❌ No FCM token available');
+                return;
+            }
 
-            // Send the request with the token
-            const response = await fetch('/api/fcm/test-notification', {
+            addDiagnostic('Sending test notification...');
+
+            // Get the CSRF token (still needed for web routes)
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+            // Send the request with token to the web route
+            const response = await fetch('/fcm/test-notification', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': token,
+                    'X-CSRF-TOKEN': csrfToken,
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
@@ -174,8 +182,8 @@ export default function NotificationTest() {
                 throw new Error('No FCM token available');
             }
 
-            // Send token to server for validation
-            const response = await fetch('/api/fcm/validate-token', {
+            // Updated URL without the /api prefix
+            const response = await fetch('/fcm/validate-token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

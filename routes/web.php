@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\FirebaseController;
 
 
 // Dashboard for authenticated users
@@ -228,6 +229,39 @@ Route::get('/notification-test', function () {
 
 Route::get('/sw-test', function () {
     return view('sw-test');
+});
+
+// Firebase Cloud Messaging Routes
+Route::prefix('fcm')->middleware(['auth'])->group(function () {
+    Route::post('register-token', [FirebaseController::class, 'registerToken']);
+    Route::post('unregister-token', [FirebaseController::class, 'unregisterToken']);
+    Route::post('test-notification', [FirebaseController::class, 'sendTestNotification']);
+    Route::post('test-memo-notification', [FirebaseController::class, 'sendTestMemoNotification']);
+    Route::post('broadcast', [FirebaseController::class, 'sendBroadcastNotification']);
+    Route::post('validate-token', [FirebaseController::class, 'validateToken']);
+});
+
+// Add this route
+Route::get('/firebase-test', function () {
+    try {
+        $messaging = app('firebase.messaging');
+        $projectId = config('firebase.projects.app.project_id');
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Firebase messaging instance created successfully',
+            'project_id' => $projectId,
+            'credential_path' => config('firebase.projects.app.credentials'),
+            'class' => get_class($messaging)
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ], 500);
+    }
 });
 
 

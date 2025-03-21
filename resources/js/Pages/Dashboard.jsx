@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarIcon, UserIcon, BellIcon, PowerIcon, HomeIcon, FolderIcon, BookmarkIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, UserIcon, BellIcon, PowerIcon, HomeIcon, FolderIcon, BookmarkIcon, PhotoIcon, ArrowPathIcon, DocumentTextIcon, EnvelopeIcon, BellSlashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/avatar";
 import { initializeApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+import axios from 'axios';
+import { Icons } from '@/Components/icons';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -99,17 +101,54 @@ const showNotification = (title, options = {}) => {
 // Add this function after your other helper functions
 const getTokenWithLogging = async (messagingInstance, options) => {
     try {
-        console.log('[FIREBASE] Requesting FCM token...');
-        const token = await getToken(messagingInstance, options);
+        console.log('[FCM Debug] Requesting FCM token with options:', {
+            vapidKey: options.vapidKey.substring(0, 10) + '...'
+        });
+
+        // Check if permission is granted first
+        if (Notification.permission !== 'granted') {
+            console.error('[FCM Debug] Notification permission not granted');
+            return null;
+        }
+
+        // Get the service worker registration first
+        const swRegistration = await navigator.serviceWorker.getRegistration();
+
+        if (!swRegistration) {
+            console.error('[FCM Debug] No service worker registration found');
+            return null;
+        }
+
+        console.log('[FCM Debug] Using service worker:', swRegistration.scope);
+
+        // Try to get the token with the service worker
+        const token = await getToken(messagingInstance, {
+            vapidKey: options.vapidKey,
+            serviceWorkerRegistration: swRegistration
+        });
+
         if (token) {
-            console.log('[FIREBASE] FCM token obtained successfully:', token.substring(0, 10) + '...');
+            console.log('[FCM Debug] FCM token obtained successfully:', token.substring(0, 10) + '...');
             return token;
         } else {
-            console.warn('[FIREBASE] Failed to obtain FCM token - returned empty');
+            console.warn('[FCM Debug] Failed to obtain FCM token - returned empty');
             return null;
         }
     } catch (error) {
-        console.error('[FIREBASE] Error getting FCM token:', error);
+        console.error('[FCM Debug] Error getting FCM token:', error);
+        console.error('[FCM Debug] Error name:', error.name);
+        console.error('[FCM Debug] Error code:', error.code);
+        console.error('[FCM Debug] Error message:', error.message);
+
+        // Check for specific error codes from Firebase
+        if (error.code === 'messaging/permission-blocked') {
+            console.error('[FCM Debug] Notifications are blocked by the browser');
+        } else if (error.code === 'messaging/unsupported-browser') {
+            console.error('[FCM Debug] Browser does not support FCM');
+        } else if (error.code === 'messaging/service-worker-error') {
+            console.error('[FCM Debug] Service worker registration failed');
+        }
+
         return null;
     }
 };
@@ -131,7 +170,6 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const [refreshInterval, setRefreshInterval] = useState(60000); // 60 seconds
     const refreshTimerRef = useRef(null);
     const [isInstallable, setIsInstallable] = useState(false);
-    const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     const [showBottomNav, setShowBottomNav] = useState(true);
     const [lastScrollPosition, setLastScrollPosition] = useState(0);
@@ -144,6 +182,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [sendingTestNotification, setSendingTestNotification] = useState(false);
     const [notificationError, setNotificationError] = useState(null);
+    const [isSendingNotification, setIsSendingNotification] = useState(false);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
 
     // Add viewport width tracking for responsive layout
     const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
@@ -151,42 +191,28 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
     // Updated service worker registration with better error handling
     const registerServiceWorker = async () => {
+        console.log('[FCM Debug] Attempting to register service worker...');
+
+        if (!('serviceWorker' in navigator)) {
+            console.error('[FCM Debug] Service workers not supported in this browser');
+            return null;
+        }
+
         try {
-            console.log('[SW] Attempting to register service worker...');
-            if ('serviceWorker' in navigator) {
-                // First unregister existing service workers to avoid conflicts
-                const existingRegistrations = await navigator.serviceWorker.getRegistrations();
-                for (let reg of existingRegistrations) {
-                    if (reg.scope.includes('firebase-messaging-sw.js')) {
-                        console.log('[SW] Unregistering existing service worker:', reg.scope);
-                        await reg.unregister();
-                    }
-                }
-
-                // Now register a fresh service worker
-                const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-                    scope: '/'
-                });
-                console.log('[SW] Service worker registered successfully:', registration.scope);
-
-                // Wait for the service worker to be activated
-                if (registration.installing) {
-                    console.log('[SW] Service worker installing...');
-                    const serviceWorker = registration.installing;
-
-                    // Listen for state changes
-                    serviceWorker.addEventListener('statechange', function() {
-                        console.log('[SW] Service worker state changed to:', serviceWorker.state);
-                    });
-                }
-
-                return registration;
-            } else {
-                console.error('[SW] Service workers not supported in this browser');
-                return null;
-            }
+            // First try registering with the default scope
+            const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+            console.log('[FCM Debug] Service worker registered successfully with scope:', registration.scope);
+            return registration;
         } catch (error) {
-            console.error('[SW] Error registering service worker:', error.message);
+            console.error('[FCM Debug] Service worker registration failed:', error);
+
+            // Log more detailed error information
+            if (error.name === 'SecurityError') {
+                console.error('[FCM Debug] This might be due to a content security policy or mixed content issue');
+            } else if (error.name === 'TypeError') {
+                console.error('[FCM Debug] The service worker file might be inaccessible or not JavaScript');
+            }
+
             return null;
         }
     };
@@ -307,7 +333,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
             });
 
             if (currentToken) {
-                await fetch('/api/fcm/register-token', {
+                await fetch('/fcm/register-token', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -340,7 +366,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
             const currentToken = await getToken(messaging);
 
             if (currentToken) {
-                await fetch('/api/fcm/unregister-token', {
+                await fetch('fcm/unregister-token', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -696,130 +722,223 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     }, []);
 
     // Function to send a test notification
-    const sendTestNotification = async () => {
-        setSendingTestNotification(true);
-
+    const sendTestNotification = async (testMemo = false) => {
         try {
-            // First try using FCM
-            if (fcmSupported && messaging) {
-                try {
-                    console.log('Attempting to use FCM for test notification...');
+            if (isSendingNotification) return;
+            setIsSendingNotification(true);
 
-                    // Log VAPID key format for debugging (only first few chars)
-                    console.log('Using VAPID key:', FIREBASE_VAPID_KEY.substring(0, 10) + '...');
-
-                    // Use getToken directly instead of getTokenWithLogging
-                    const currentToken = await getTokenWithLogging(messaging, {
-                        vapidKey: FIREBASE_VAPID_KEY
-                    });
-
-                    if (!currentToken) {
-                        throw new Error('Could not retrieve FCM token');
-                    }
-
-                    // Send to server
-                    const response = await fetch('/api/fcm/test-notification', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: currentToken, user_id: user?.id }),
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`Server responded with ${response.status}`);
-                    }
-
-                    console.log('FCM test notification sent successfully');
-                    return;
-                } catch (error) {
-                    console.error('FCM notification failed, trying fallback:', error);
-                    // Continue to fallback
-                }
+            // Wait for messaging to be initialized if it's not yet
+            let messagingInstance = messaging;
+            if (!messagingInstance && messaging === null) {
+                messagingInstance = await initializeMessaging();
             }
 
-            // Fallback to simple notifications if FCM failed
-            if (notificationsSupported()) {
-                if (!permissionGranted()) {
-                    const granted = await requestPermission();
-                    if (!granted) {
-                        throw new Error('Notification permission denied');
-                    }
-                }
+            const currentToken = messagingInstance
+                ? await getTokenWithLogging(messagingInstance, { vapidKey: FIREBASE_VAPID_KEY })
+                : localStorage.getItem('fcmToken');
 
-                // Show a local notification
-                const success = showNotification(
-                    'SPUP eMemo Test Notification',
-                    {
-                        body: 'This is a test notification from SPUP eMemo (Fallback).',
-                        tag: 'test-notification'
-                    }
-                );
-
-                if (success) {
-                    console.log('Fallback notification shown successfully');
-                } else {
-                    throw new Error('Failed to show fallback notification');
-                }
-            } else {
-                throw new Error('Notifications not supported in this browser');
+            if (!currentToken) {
+                console.error('No FCM token available for notification');
+                setIsSendingNotification(false);
+                return;
             }
+
+            // Update endpoint based on notification type
+            const endpoint = testMemo
+                ? '/fcm/test-memo-notification'
+                : '/fcm/test-notification';
+
+            // Get latest memo if testing a memo notification
+            let memoId = null;
+            if (testMemo && memos.length > 0) {
+                memoId = memos[0].id;
+            }
+
+            console.log(`Sending ${testMemo ? 'memo' : 'regular'} test notification with token: ${currentToken.substr(0, 10)}...`);
+
+            // Send FCM notification using axios with default CSRF handling
+            const response = await axios.post(endpoint, {
+                token: currentToken,
+                memo_id: memoId
+            });
+
+            console.log('FCM notification sent successfully:', response.data);
+
+            // Show fallback notification if running in browser context
+            let title = testMemo
+                ? 'Memo Notification Test'
+                : 'Test Notification';
+
+            let body = testMemo
+                ? `Memo test: ${response.data?.memo?.title || 'Test memo notification'}`
+                : 'This is a test notification from SPUP eMemo';
+
+            showNotification(title, {
+                body: body,
+                icon: '/images/logo.png',
+                tag: 'test-notification'
+            });
+
+            setIsSendingNotification(false);
         } catch (error) {
             console.error('Error sending test notification:', error);
-            setNotificationError(error.message);
-        } finally {
-            setSendingTestNotification(false);
+
+            // Fallback to showing a simple browser notification
+            if (notificationsSupported() && permissionGranted()) {
+                showNotification('Test Notification', {
+                    body: 'FCM failed, but browser notifications work!',
+                    icon: '/images/logo.png',
+                    tag: 'test-notification'
+                });
+            }
+
+            setIsSendingNotification(false);
+        }
+    };
+
+    // Add a function to send broadcast notifications to all devices
+    const sendBroadcastNotification = async () => {
+        try {
+            if (isSendingNotification) return;
+            setIsSendingNotification(true);
+
+            console.log('Sending broadcast notification to all devices');
+
+            // Send broadcast notification with default axios CSRF handling
+            const response = await axios.post('/fcm/broadcast', {
+                title: 'Broadcast Notification',
+                body: 'This is a broadcast message to all devices',
+                data: {
+                    type: 'broadcast',
+                    url: window.location.origin,
+                    timestamp: Date.now()
+                }
+            });
+
+            console.log('Broadcast notification sent successfully:', response.data);
+
+            // Show fallback notification
+            showNotification('Broadcast Sent', {
+                body: 'A broadcast notification has been sent to all devices',
+                icon: '/images/logo.png',
+                tag: 'broadcast-notification'
+            });
+
+            setIsSendingNotification(false);
+        } catch (error) {
+            console.error('Error sending broadcast notification:', error);
+
+            // Show error notification
+            if (notificationsSupported() && permissionGranted()) {
+                showNotification('Broadcast Failed', {
+                    body: 'Failed to send broadcast notification: ' + (error.response?.data?.message || error.message),
+                    icon: '/images/logo.png',
+                    tag: 'broadcast-error'
+                });
+            }
+
+            setIsSendingNotification(false);
         }
     };
 
     // Render notification buttons conditionally based on support
     const renderNotificationButtons = () => {
-        if (notificationError) {
-            // Display error message if FCM is not supported
+        if (!notificationsSupported()) {
             return (
-                <div className="text-sm text-gray-500">
-                    {notificationError}
+                <div className="text-center">
+                    <p className="text-sm text-gray-500">
+                        Notifications are not supported in your browser.
+                    </p>
                 </div>
             );
         }
 
-        if (!fcmSupported) {
-            return null;
+        if (!permissionGranted()) {
+            return (
+                <Button
+                    className="w-full"
+                    onClick={enableNotifications}
+                    disabled={notificationsLoading}
+                >
+                    {notificationsLoading ? (
+                        <>
+                            <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                            Enabling...
+                        </>
+                    ) : (
+                        'Enable Notifications'
+                    )}
+                </Button>
+            );
         }
 
         return (
-            <div className="flex items-center gap-2">
-                <Button
-                    variant={notificationsEnabled ? "outline" : "default"}
-                    size="sm"
-                    onClick={notificationsEnabled ? disableNotifications : enableNotifications}
-                    className="flex items-center gap-2"
-                >
-                    <BellIcon className="h-4 w-4" />
-                    {notificationsEnabled ? "Notifications On" : "Enable Notifications"}
-                </Button>
-
-                {notificationsEnabled && (
+            <div className="space-y-2">
+                <div className="grid grid-cols-3 gap-2">
                     <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={sendTestNotification}
-                        disabled={sendingTestNotification}
-                        className="flex items-center gap-2"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => sendTestNotification(false)}
+                        disabled={isSendingNotification}
                     >
-                        {sendingTestNotification ? (
+                        {isSendingNotification ? (
                             <>
-                                <svg className="animate-spin h-4 w-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
+                                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
                                 Sending...
                             </>
                         ) : (
-                            <>
-                                <span className="text-sm">Test Notification</span>
-                            </>
+                            'Test Notification'
                         )}
                     </Button>
-                )}
+
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => sendTestNotification(true)}
+                        disabled={isSendingNotification}
+                    >
+                        {isSendingNotification ? (
+                            <>
+                                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                                Sending...
+                            </>
+                        ) : (
+                            'Test Memo Notification'
+                        )}
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={sendBroadcastNotification}
+                        disabled={isSendingNotification}
+                    >
+                        {isSendingNotification ? (
+                            <>
+                                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                                Sending...
+                            </>
+                        ) : (
+                            'Broadcast'
+                        )}
+                    </Button>
+                </div>
+
+                <Button
+                    variant="destructive"
+                    className="w-full"
+                    onClick={disableNotifications}
+                    disabled={notificationsLoading}
+                >
+                    {notificationsLoading ? (
+                        <>
+                            <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+                            Disabling...
+                        </>
+                    ) : (
+                        'Disable Notifications'
+                    )}
+                </Button>
             </div>
         );
     };
@@ -895,7 +1014,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
             // Now test if the server (kreait/firebase) can validate this token
             console.log('🔄 Sending token to server for validation...');
-            const response = await fetch('/api/fcm/validate-token', {
+            const response = await fetch('fcm/validate-token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -969,6 +1088,36 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         setTimeout(runFcmDiagnostics, 3000);
     }, []);
 
+    // Add this function
+    const testDirectNotification = async () => {
+        try {
+            // Request permission if needed
+            if (Notification.permission !== 'granted') {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    console.error('Permission not granted for notifications');
+                    return false;
+                }
+            }
+
+            // Show direct browser notification
+            const notification = new Notification('Test Direct Notification', {
+                body: 'This is a direct browser notification (no Firebase)',
+                icon: '/images/logo.png'
+            });
+
+            notification.onclick = () => {
+                console.log('Notification clicked');
+                notification.close();
+            };
+
+            return true;
+        } catch (error) {
+            console.error('Error showing direct notification:', error);
+            return false;
+        }
+    };
+
     return (
         <>
             <Head title="SPUP eMemo" />
@@ -1032,57 +1181,108 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
                 {/* Mobile bottom navigation */}
                 <div className={`fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-30 transition-transform duration-300 ${showBottomNav ? 'translate-y-0' : 'translate-y-full'}`}>
-                    <div className="grid grid-cols-3 py-2">
-                        <button className="flex flex-col items-center justify-center px-3 py-1 active:bg-gray-100 rounded-md">
-                            <HomeIcon className="h-6 w-6 text-primary" />
-                            <span className="text-xs mt-1">Home</span>
-                        </button>
+                    <div className="grid grid-cols-5 p-1 gap-1">
+                        <Button
+                            variant="ghost"
+                            className="flex items-center justify-center rounded-md p-2"
+                            onClick={refreshMemos}
+                        >
+                            <ArrowPathIcon className="h-6 w-6" />
+                            <span className="text-xs mt-1">Refresh</span>
+                        </Button>
 
-                        {/* Only show notification buttons if supported */}
-                        {fcmSupported && (
-                            <button
-                                className="flex flex-col items-center justify-center px-3 py-1 active:bg-gray-100 rounded-md"
-                                onClick={notificationsEnabled ? disableNotifications : enableNotifications}
-                            >
-                                <BellIcon className={`h-6 w-6 ${notificationsEnabled ? 'text-primary' : 'text-gray-600'}`} />
-                                <span className="text-xs mt-1">{notificationsEnabled ? 'Notifications On' : 'Enable Notifications'}</span>
-                            </button>
-                        )}
-
-                        {/* Test notification button */}
-                        {fcmSupported && notificationsEnabled && (
-                            <button
-                                className="flex flex-col items-center justify-center px-3 py-1 active:bg-gray-100 rounded-md"
-                                onClick={sendTestNotification}
-                                disabled={sendingTestNotification}
-                            >
-                                {sendingTestNotification ? (
+                        {notificationsSupported() && (
+                            <>
+                                {permissionGranted() ? (
                                     <>
-                                        <svg className="animate-spin h-6 w-6 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        <span className="text-xs mt-1">Sending...</span>
+                                        <Button
+                                            variant="ghost"
+                                            className="flex flex-col items-center justify-center rounded-md p-2"
+                                            onClick={() => sendTestNotification(false)}
+                                            disabled={isSendingNotification}
+                                        >
+                                            {isSendingNotification ? (
+                                                <>
+                                                    <Icons.spinner className="h-6 w-6 animate-spin" />
+                                                    <span className="text-xs mt-1">Sending...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <BellIcon className="h-6 w-6" />
+                                                    <span className="text-xs mt-1">Test</span>
+                                                </>
+                                            )}
+                                        </Button>
+
+                                        <Button
+                                            variant="ghost"
+                                            className="flex flex-col items-center justify-center rounded-md p-2"
+                                            onClick={() => sendTestNotification(true)}
+                                            disabled={isSendingNotification}
+                                        >
+                                            {isSendingNotification ? (
+                                                <>
+                                                    <Icons.spinner className="h-6 w-6 animate-spin" />
+                                                    <span className="text-xs mt-1">Sending...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <DocumentTextIcon className="h-6 w-6" />
+                                                    <span className="text-xs mt-1">Memo</span>
+                                                </>
+                                            )}
+                                        </Button>
+
+                                        <Button
+                                            variant="ghost"
+                                            className="flex flex-col items-center justify-center rounded-md p-2"
+                                            onClick={sendBroadcastNotification}
+                                            disabled={isSendingNotification}
+                                        >
+                                            {isSendingNotification ? (
+                                                <>
+                                                    <Icons.spinner className="h-6 w-6 animate-spin" />
+                                                    <span className="text-xs mt-1">Sending...</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <EnvelopeIcon className="h-6 w-6" />
+                                                    <span className="text-xs mt-1">Broadcast</span>
+                                                </>
+                                            )}
+                                        </Button>
                                     </>
                                 ) : (
-                                    <>
-                                        <svg className="h-6 w-6 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                                        </svg>
-                                        <span className="text-xs mt-1">Test</span>
-                                    </>
+                                    <Button
+                                        variant="ghost"
+                                        className="flex flex-col items-center justify-center rounded-md p-2"
+                                        onClick={enableNotifications}
+                                    >
+                                        <BellIcon className="h-6 w-6" />
+                                        <span className="text-xs mt-1">Enable</span>
+                                    </Button>
                                 )}
-                            </button>
+                            </>
+                        ) || (
+                            <Button
+                                variant="ghost"
+                                className="flex flex-col items-center justify-center rounded-md p-2"
+                                disabled={true}
+                            >
+                                <BellSlashIcon className="h-6 w-6" />
+                                <span className="text-xs mt-1">Not Available</span>
+                            </Button>
                         )}
 
-                        {/* If notifications aren't supported, show info button instead */}
-                        {!fcmSupported && notificationError && (
-                            <button className="flex flex-col items-center justify-center px-3 py-1 active:bg-gray-100 rounded-md">
-                                <svg className="h-6 w-6 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span className="text-xs mt-1">Not Available</span>
-                            </button>
+                        {isInstallable && (
+                            <Button
+                                variant="ghost"
+                                className="flex flex-col items-center justify-center rounded-md p-2"
+                                onClick={installApp}
+                            >
+                                <ArrowDownTrayIcon className="h-6 w-6" />
+                                <span className="text-xs mt-1">Install</span>
+                            </Button>
                         )}
                     </div>
                 </div>

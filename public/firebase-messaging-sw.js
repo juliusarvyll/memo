@@ -1,18 +1,11 @@
-// Simplest possible service worker
-self.addEventListener('install', function(event) {
-  console.log('Service Worker installing...');
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', function(event) {
-  console.log('Service Worker activating...');
-  event.waitUntil(clients.claim());
-});
-
-// Basic firebase messaging integration
+// Absolutely minimal service worker
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-compat.js');
 
+// Log initialization
+console.log('Firebase Messaging SW initializing...');
+
+// Initialize Firebase
 firebase.initializeApp({
   apiKey: "AIzaSyB7RoHQrVwENdnc55FY-wBOSdKdLtxToWo",
   authDomain: "memo-notifications.firebaseapp.com",
@@ -21,18 +14,35 @@ firebase.initializeApp({
   appId: "1:104025865077:web:68fd2247f8c95b9670713c"
 });
 
+// Get messaging instance
 const messaging = firebase.messaging();
 
-messaging.onBackgroundMessage(function(payload) {
-  console.log('Received background message ', payload);
+// Log initialization success
+console.log('Firebase Messaging SW initialized successfully');
 
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
+// Handle background messages
+messaging.onBackgroundMessage(function(payload) {
+  console.log('SW: Received background message ', payload);
+
+  // Show notification
+  const title = payload.notification.title || 'Notification';
+  const options = {
+    body: payload.notification.body || '',
     icon: '/images/logo.png'
   };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(title, options);
+});
+
+// Just to ensure service worker activates properly
+self.addEventListener('install', event => {
+  console.log('SW: Installing service worker');
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+  console.log('SW: Activating service worker');
+  event.waitUntil(clients.claim());
 });
 
 // Handle notification clicks

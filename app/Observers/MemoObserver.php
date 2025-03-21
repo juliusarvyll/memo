@@ -54,18 +54,40 @@ class MemoObserver
      */
     private function sendNewMemoNotification(Memo $memo): void
     {
-        $authorName = $memo->author ? $memo->author->name : 'SPUP Staff';
+        try {
+            $authorName = $memo->author ? $memo->author->name : 'SPUP Staff';
 
-        // Send FCM notification to all registered tokens
-        $this->fcmService->sendToAllUsers(
-            'New SPUP eMemo Published',
-            $memo->title,
-            [
+            Log::info('Preparing to send FCM notification for memo', [
                 'memo_id' => $memo->id,
-                'author' => $authorName,
-                'url' => url('/') . "?memo={$memo->id}",
-                'published_at' => $memo->published_at->toDateTimeString()
-            ]
-        );
+                'title' => $memo->title
+            ]);
+
+            // Set a timeout to prevent long-running requests
+            ini_set('max_execution_time', 300); // 5 minutes
+
+            // Send FCM notification to all registered tokens
+            $result = $this->fcmService->sendToAllUsers(
+                'New SPUP eMemo Published',
+                $memo->title,
+                [
+                    'memo_id' => $memo->id,
+                    'author' => $authorName,
+                    'url' => url('/') . "?memo={$memo->id}",
+                    'published_at' => $memo->published_at->toDateTimeString()
+                ]
+            );
+
+            Log::info('FCM notification sent for memo', [
+                'memo_id' => $memo->id,
+                'title' => $memo->title,
+                'result' => $result
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending FCM notification for memo', [
+                'memo_id' => $memo->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 }

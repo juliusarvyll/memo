@@ -18,7 +18,7 @@ return [
      */
 
     'projects' => [
-        'app' => [
+        'memo-notifications' => [
 
             /*
              * ------------------------------------------------------------------------
@@ -51,7 +51,7 @@ return [
              */
 
             'credentials' => [
-                'file' => storage_path('memo-auth.json'),
+                'file' => storage_path('memo-notifications-firebase-adminsdk-fbsvc-c530a555f2.json'),
             ],
 
             /*

@@ -43,15 +43,3 @@ Route::post('/fcm/validate-token', function (Request $request) {
         );
     }
 });
-
-// Firebase Cloud Messaging Routes
-Route::prefix('fcm')->group(function () {
-    Route::post('register-token', [FirebaseController::class, 'registerToken'])
-        ->middleware('auth:sanctum');
-    Route::post('unregister-token', [FirebaseController::class, 'unregisterToken'])
-        ->middleware('auth:sanctum');
-    Route::post('test-notification', [FirebaseController::class, 'sendTestNotification'])
-        ->middleware('auth:sanctum');
-    Route::post('validate-token', [FirebaseController::class, 'validateToken'])
-        ->middleware('auth:sanctum');
-});

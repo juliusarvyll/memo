@@ -52,6 +52,16 @@ class User extends Authenticatable
         ];
     }
 
+    /**
+     * Route notifications for the FCM channel.
+     *
+     * @return string|null
+     */
+    public function routeNotificationForFcm()
+    {
+        return $this->fcm_token;
+    }
+
     public function memos(): HasMany
     {
         return $this->hasMany(Memo::class, 'author_id');
