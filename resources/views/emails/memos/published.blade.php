@@ -28,14 +28,6 @@
             font-weight: bold;
             margin-bottom: 10px;
         }
-        .memo-category {
-            display: inline-block;
-            background-color: #eee;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-bottom: 15px;
-        }
         .memo-content {
             margin-bottom: 20px;
             padding: 0 10px;
@@ -73,8 +65,6 @@
     <p>A new memo has been published in the SPUP Memo System.</p>
 
     <div class="memo-title">{{ $memo->title }}</div>
-
-    <div class="memo-category">{{ $memo->category->name }}</div>
 
     <div class="memo-content">
         {!! Str::limit(strip_tags($memo->content), 300) !!}

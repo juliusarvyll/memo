@@ -56,19 +56,6 @@ class MemoResource extends Resource
                         Forms\Components\TextInput::make('title')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('category_id')
-                            ->relationship('category', 'name')
-                            ->required()
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\TextInput::make('slug')
-                                    ->required()
-                                    ->maxLength(255),
-                                Forms\Components\Textarea::make('description')
-                                    ->maxLength(65535),
-                            ]),
 
                         Forms\Components\Hidden::make('author_id')
                             ->default(fn () => auth()->id()),
@@ -150,10 +137,6 @@ class MemoResource extends Resource
                     ->sortable()
                     ->limit(30),
 
-                Tables\Columns\TextColumn::make('category.name')
-                    ->sortable()
-                    ->searchable(),
-
                 Tables\Columns\TextColumn::make('author.name')
                     ->searchable(),
 
@@ -203,9 +186,6 @@ class MemoResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('category')
-                    ->relationship('category', 'name'),
-
                 Tables\Filters\TernaryFilter::make('is_published'),
             ])
             ->actions([
@@ -246,8 +226,6 @@ class MemoResource extends Resource
                                             ->label('Author'),
                                         Components\TextEntry::make('author.email')
                                             ->label('Author Email'),
-                                        Components\TextEntry::make('category.name')
-                                            ->label('Category'),
                                     ]),
                                 ]),
                             Components\ImageEntry::make('image')

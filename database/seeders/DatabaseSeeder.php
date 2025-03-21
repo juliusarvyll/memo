@@ -18,7 +18,6 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             RolesAndPermissionsSeeder::class,
-            CategorySeeder::class,
         ]);
 
         // Create 3 editors
@@ -46,7 +45,7 @@ class DatabaseSeeder extends Seeder
 
         // Note: Super Admin is already created in RolesAndPermissionsSeeder
 
-        // Seed memos after users and categories are created
+        // Seed memos after users are created
         $this->call([
             MemoSeeder::class,
         ]);

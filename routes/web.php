@@ -14,7 +14,7 @@ use App\Http\Controllers\FirebaseController;
 // Dashboard for authenticated users
 Route::get('/', function () {
     return Inertia::render('Dashboard', [
-        'memos' => App\Models\Memo::with(['category', 'author:id,name,avatar'])
+        'memos' => App\Models\Memo::with(['author:id,name,avatar'])
             ->where('is_published', true)
             ->orderBy('published_at', 'desc')
             ->get(),
@@ -198,24 +198,24 @@ Route::get('/test-valid-emails-only', function () {
             // Check if domain is invalid
             $domain = explode('@', $user->email)[1] ?? '';
             if (in_array($domain, $invalidDomains) || str_contains($domain, 'example') || str_contains($domain, 'test')) {
-                Log::warning('Skipping RFC 2606 reserved domain email', [
+                \Illuminate\Support\Facades\Log::warning('Skipping RFC 2606 reserved domain email', [
                     'email' => $user->email
                 ]);
                 $skippedCount++;
                 continue;
             }
 
-            // Send to valid emails only
+            // Send to valid emails only using queue
             \Illuminate\Support\Facades\Mail::to($user->email)
-                ->send(new \App\Mail\MemoPublished($memo));
+                ->queue(new \App\Mail\MemoPublished($memo));
 
             $validEmails[] = $user->email;
             $sentCount++;
         }
 
-        return "Emails sent to $sentCount valid addresses. Skipped $skippedCount invalid addresses. Valid emails: " . implode(', ', $validEmails);
+        return "Emails queued for $sentCount valid addresses. Skipped $skippedCount invalid addresses. Valid emails: " . implode(', ', $validEmails);
     } catch (\Exception $e) {
-        Log::error('Failed to send filtered emails', [
+        \Illuminate\Support\Facades\Log::error('Failed to queue filtered emails', [
             'error' => $e->getMessage()
         ]);
 
@@ -263,6 +263,46 @@ Route::get('/firebase-test', function () {
         ], 500);
     }
 });
+
+// Test route for sending email only to subscribers
+Route::get('/test-subscribers-email', function () {
+    $memo = \App\Models\Memo::latest()->first();
+
+    if (!$memo) {
+        return 'No memo found for testing.';
+    }
+
+    try {
+        // Get all active subscribers
+        $subscribers = \App\Models\Subscriber::where('is_active', true)->get();
+
+        if ($subscribers->isEmpty()) {
+            return 'No active subscribers found. Please add some subscribers first.';
+        }
+
+        $sentCount = 0;
+        $validEmails = [];
+
+        foreach ($subscribers as $subscriber) {
+            \Illuminate\Support\Facades\Mail::to($subscriber->email)
+                ->queue(new \App\Mail\MemoPublished($memo));
+
+            // Update the last_notified_at timestamp
+            $subscriber->update(['last_notified_at' => now()]);
+
+            $validEmails[] = $subscriber->email;
+            $sentCount++;
+        }
+
+        return "Emails queued for $sentCount subscribers: " . implode(', ', $validEmails);
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Failed to queue emails to subscribers', [
+            'error' => $e->getMessage()
+        ]);
+
+        return 'Error: ' . $e->getMessage();
+    }
+})->middleware(['auth']);
 
 
 

@@ -14,7 +14,6 @@ class Memo extends Model
         'title',
         'content',
         'author_id',
-        'category_id',
         'is_published',
         'published_at',
         'image'

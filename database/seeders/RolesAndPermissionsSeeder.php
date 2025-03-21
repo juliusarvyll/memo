@@ -30,15 +30,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'delete_any_memo',
         ];
 
-        // Create permissions for categories
-        $categoryPermissions = [
-            'view_any_category',
-            'view_category',
-            'create_category',
-            'update_category',
-            'delete_category',
-        ];
-
         // Create permissions for authors
         $authorPermissions = [
             'view_any_author',
@@ -58,7 +49,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ];
 
         // Create all permissions
-        foreach ([...$memoPermissions, ...$categoryPermissions, ...$authorPermissions, ...$rolePermissions] as $permission) {
+        foreach ([...$memoPermissions, ...$authorPermissions, ...$rolePermissions] as $permission) {
             Permission::create(['name' => $permission]);
         }
 
@@ -68,7 +59,6 @@ class RolesAndPermissionsSeeder extends Seeder
         // Assign permissions to roles
         $editor->givePermissionTo([
             ...$memoPermissions,
-            ...$categoryPermissions,
             'view_any_author',
             'view_author',
             'access_filament',
@@ -80,8 +70,6 @@ class RolesAndPermissionsSeeder extends Seeder
             'create_memo',
             'update_memo',
             'delete_memo',
-            'view_any_category',
-            'view_category',
             'access_filament',
         ]);
 
@@ -89,8 +77,6 @@ class RolesAndPermissionsSeeder extends Seeder
         $viewer->givePermissionTo([
             'view_any_memo',
             'view_memo',
-            'view_any_category',
-            'view_category',
         ]);
 
         // Super admin gets everything

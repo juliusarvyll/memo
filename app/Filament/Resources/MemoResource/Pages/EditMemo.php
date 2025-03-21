@@ -50,8 +50,8 @@ class EditMemo extends EditRecord
 
         // Check if the memo was just published
         if ($memo->is_published && $memo->wasChanged('is_published')) {
-            $this->sendMemoNotification($memo);
-            $this->sendFcmNotifications($memo);
+            // Dispatch the MemoPublished event which will handle notifications
+            event(new \App\Events\MemoPublished($memo));
         }
         // Check if the content was updated while published
         elseif ($memo->is_published && ($memo->wasChanged('title') || $memo->wasChanged('content'))) {

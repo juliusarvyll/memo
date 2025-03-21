@@ -10,10 +10,11 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class MemoPublished extends Mailable
+class MemoPublished extends Mailable implements ShouldQueue
 {
-    use SerializesModels;
+    use Queueable, SerializesModels;
 
     /**
      * Create a new message instance.
