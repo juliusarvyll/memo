@@ -24,9 +24,23 @@ class Memo extends Model
         'published_at' => 'datetime',
     ];
 
+    protected $appends = ['image_url'];
+
     public function author(): BelongsTo
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    /**
+     * Get the full URL for the image
+     */
+    public function getImageUrlAttribute()
+    {
+        if ($this->image) {
+            return asset('storage/' . $this->image);
+        }
+
+        return null;
     }
 
     /**

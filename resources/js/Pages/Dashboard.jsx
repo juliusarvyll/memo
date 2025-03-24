@@ -32,6 +32,18 @@ const colors = {
     successLight: '#c6f6d5'
 };
 
+// Add this helper function right before the Dashboard component
+function isPublishedToday(dateString) {
+    if (!dateString) return false;
+    const publishedDate = new Date(dateString);
+    const today = new Date();
+    return (
+        publishedDate.getDate() === today.getDate() &&
+        publishedDate.getMonth() === today.getMonth() &&
+        publishedDate.getFullYear() === today.getFullYear()
+    );
+}
+
 export default function Dashboard({ memos, canLogin, canRegister }) {
     const { auth } = usePage().props;
     const user = auth.user;
@@ -195,7 +207,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                                     >
                                         <img
                                             ref={zoomImageRef}
-                                            src={`/storage/${selectedMemo.image}`}
+                                            src={selectedMemo.image_url}
                                             alt={selectedMemo.title}
                                             className={`w-full h-auto object-contain max-h-[30vh] sm:max-h-[50vh] transition-transform duration-200 ${isZooming ? 'scale-[1.5]' : 'scale-100'}`}
                                         />
@@ -262,7 +274,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                     <DialogContent className="max-w-full sm:max-w-5xl max-h-[95vh] p-1 sm:p-4 flex items-center justify-center m-0 sm:m-4 w-full rounded-none sm:rounded-lg">
                         <div className="relative w-full h-full flex items-center justify-center">
                             <img
-                                src={`/storage/${selectedMemo.image}`}
+                                src={selectedMemo.image_url}
                                 alt={selectedMemo.title}
                                 className="max-w-full max-h-[90vh] object-contain"
                             />
@@ -290,6 +302,7 @@ function MemoCard({ memo, onClick, colors }) {
     const author = memo.author || { name: 'Unknown' };
     const [authorAvatarSrc, setAuthorAvatarSrc] = useState(author.avatar ? `/storage/${author.avatar}` : null);
     const [imageError, setImageError] = useState(false);
+    const isRecent = isPublishedToday(memo.published_at);
 
     // Remove isHovering state and related refs since we don't need hover effects
     const cardRef = useRef(null);
@@ -307,9 +320,9 @@ function MemoCard({ memo, onClick, colors }) {
     return (
         <Card
             ref={cardRef}
-            className="h-full group relative cursor-pointer overflow-hidden touch-manipulation"
+            className={`h-full group relative cursor-pointer overflow-hidden touch-manipulation ${isRecent ? 'ring-2 ring-offset-1' : ''}`}
             onClick={onClick}
-            // Remove all hover-related event handlers
+            style={isRecent ? { ringColor: colors.secondary } : {}}
         >
             {/* Remove background overlay gradient that was shown on hover */}
 
@@ -317,7 +330,7 @@ function MemoCard({ memo, onClick, colors }) {
             {memo.image && !imageError ? (
                 <div className="absolute inset-0 w-full h-full overflow-hidden">
                     <img
-                        src={`/storage/${memo.image}`}
+                        src={memo.image_url}
                         alt={memo.title}
                         className="w-full h-full object-cover"
                         onError={handleMemoImageError}
@@ -371,9 +384,12 @@ function MemoCard({ memo, onClick, colors }) {
                     {memo.is_published && (
                         <div
                             className="px-2 py-0.5 rounded text-xs"
-                            style={{ backgroundColor: colors.secondary, color: colors.dark }}
+                            style={{
+                                backgroundColor: isRecent ? colors.secondary : colors.secondary + '80',
+                                color: colors.dark
+                            }}
                         >
-                            Published
+                            {isRecent ? 'New' : 'Published'}
                         </div>
                     )}
                 </div>
@@ -392,6 +408,7 @@ function MemoListItem({ memo, onClick, colors }) {
     const author = memo.author || { name: 'Unknown' };
     const [authorAvatarSrc, setAuthorAvatarSrc] = useState(author.avatar ? `/storage/${author.avatar}` : null);
     const [imageError, setImageError] = useState(false);
+    const isRecent = isPublishedToday(memo.published_at);
 
     // Handle author avatar error
     const handleAuthorAvatarError = () => {
@@ -405,15 +422,15 @@ function MemoListItem({ memo, onClick, colors }) {
 
     return (
         <div
-            className="bg-white rounded-lg shadow overflow-hidden flex cursor-pointer transition-colors"
+            className={`bg-white rounded-lg shadow overflow-hidden flex cursor-pointer transition-colors ${isRecent ? 'ring-2 ring-offset-1' : ''}`}
             onClick={onClick}
-            // Remove the active:bg-gray-50 effect
+            style={isRecent ? { ringColor: colors.secondary } : {}}
         >
             {/* Thumbnail */}
             <div className="w-20 h-20 flex-shrink-0 bg-gray-100 relative">
                 {memo.image && !imageError ? (
                     <img
-                        src={`/storage/${memo.image}`}
+                        src={memo.image_url}
                         alt=""
                         className="w-full h-full object-cover"
                         onError={handleMemoImageError}
@@ -433,9 +450,17 @@ function MemoListItem({ memo, onClick, colors }) {
             </div>
 
             {/* Content */}
-            <div className="p-3 flex-1 min-w-0 flex flex-col justify-between border-l-2" style={{ borderColor: colors.primary }}>
+            <div className="p-3 flex-1 min-w-0 flex flex-col justify-between border-l-2" style={{ borderColor: isRecent ? colors.secondary : colors.primary }}>
                 <div>
-                    <h3 className="font-semibold text-sm line-clamp-1 mb-0.5" style={{ color: colors.primary }}>{memo.title}</h3>
+                    <div className="flex justify-between items-center mb-0.5">
+                        <h3 className="font-semibold text-sm line-clamp-1" style={{ color: colors.primary }}>{memo.title}</h3>
+                        {isRecent && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1"
+                                  style={{ backgroundColor: colors.secondary, color: colors.dark }}>
+                                New
+                            </span>
+                        )}
+                    </div>
                     <p className="text-xs text-gray-600 line-clamp-2 mb-1">
                         {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
                     </p>

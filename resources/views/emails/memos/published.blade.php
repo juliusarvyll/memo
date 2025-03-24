@@ -14,10 +14,11 @@
             padding: 20px;
         }
         .header {
-            background-color: #f5f5f5;
+            background-color: #626F47; /* SPUP primary green */
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 5px;
+            color: white;
         }
         .logo {
             max-width: 150px;
@@ -27,10 +28,18 @@
             font-size: 20px;
             font-weight: bold;
             margin-bottom: 10px;
+            color: #626F47; /* SPUP primary green */
         }
         .memo-content {
             margin-bottom: 20px;
             padding: 0 10px;
+        }
+        .memo-image {
+            width: 100%;
+            max-width: 500px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border: 1px solid #eee;
         }
         .memo-meta {
             font-size: 13px;
@@ -40,7 +49,7 @@
         }
         .cta-button {
             display: inline-block;
-            background-color: #4a6cf7;
+            background-color: #626F47; /* SPUP primary green */
             color: white;
             padding: 10px 20px;
             text-decoration: none;
@@ -66,6 +75,12 @@
 
     <div class="memo-title">{{ $memo->title }}</div>
 
+    @if($memo->image)
+    <div style="text-align: center;">
+        <img src="{{ $message->embed(storage_path('app/public/' . $memo->image)) }}" alt="Memo Image" class="memo-image">
+    </div>
+    @endif
+
     <div class="memo-content">
         {!! Str::limit(strip_tags($memo->content), 300) !!}
         @if(strlen(strip_tags($memo->content)) > 300)
@@ -73,7 +88,7 @@
         @endif
     </div>
 
-    <a href="{{ url('/') }}" class="cta-button">View Full Memo</a>
+    <a href="{{ url('/') }}" class="cta-button" style="background-color: #626F47; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin: 20px 0;">View Full Memo</a>
 
     <div class="memo-meta">
         <p>Published by: {{ $memo->author->name }}</p>
@@ -81,7 +96,7 @@
     </div>
 
     <div class="footer">
-        <p>This is an automated message from the SPUP Memo System. Please do not reply to this email.</p>
+        <p>This is an automated message from the SPUP eMemo System. Please do not reply to this email.</p>
         <p>&copy; {{ date('Y') }} SPUP Memo System. All rights reserved.</p>
     </div>
 </body>

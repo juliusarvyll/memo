@@ -102,6 +102,10 @@ class MemoResource extends Resource
                             ->directory('memos')
                             ->visibility('public')
                             ->maxSize(5120)
+                            ->imageResizeMode('cover')
+                            ->imageCropAspectRatio('16:9')
+                            ->imageResizeTargetWidth('1200')
+                            ->imageResizeTargetHeight('675')
                             ->nullable()
                             ->hiddenLabel()
                             ->saveUploadedFileUsing(function ($file) {
@@ -130,7 +134,9 @@ class MemoResource extends Resource
                     ->label('Image')
                     ->circular(false)
                     ->width(100)
-                    ->height(70),
+                    ->height(70)
+                    ->disk('public')
+                    ->visibility('public'),
 
                 Tables\Columns\TextColumn::make('title')
                     ->searchable()
@@ -231,6 +237,7 @@ class MemoResource extends Resource
                             Components\ImageEntry::make('image')
                                 ->hiddenLabel()
                                 ->visible(fn ($record) => $record->image !== null)
+                                ->disk('public')
                                 ->grow(false),
                         ])->from('lg'),
                     ]),
