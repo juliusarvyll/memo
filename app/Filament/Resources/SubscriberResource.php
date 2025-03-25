@@ -117,7 +117,7 @@ class SubscriberResource extends Resource
                             ->default(true)
                             ->helperText('First row contains column headers'),
                     ])
-                    ->action(function (array $data): void {
+                    ->action(function (array $data): void { 
                         $path = storage_path('app/public/' . $data['csv']);
                         $hasHeaderRow = $data['has_header_row'] ?? true;
 

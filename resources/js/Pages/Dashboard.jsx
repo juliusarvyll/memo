@@ -106,23 +106,23 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
             <Head title="SPUP eMemo" />
             <div className="flex flex-col min-h-screen bg-gray-50">
                 {/* Header section - Improved for mobile with SPUP colors */}
-                <header className="bg-white shadow border-b py-3 sticky top-0 z-30" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
-                    <div className="container mx-auto max-w-6xl px-4">
+                <header className="bg-white shadow border-b py-4 sticky top-0 z-30" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
+                    <div className="container mx-auto max-w-6xl px-6">
                         <div className="flex justify-between items-center">
-                            <div className="flex items-center space-x-2">
+                            <div className="flex items-center space-x-3">
                                 <img
                                     src="images/logo.png"
                                     alt="SPUP Logo"
-                                    className="h-8 w-auto"
+                                    className="h-9 w-auto"
                                 />
-                                <h1 className="text-lg font-bold text-white">SPUP eMemo</h1>
+                                <h1 className="text-xl font-bold text-white">SPUP eMemo</h1>
                             </div>
                         </div>
                     </div>
                 </header>
 
                 {/* Title section - Simplified for mobile */}
-                <div className="bg-gray-50 pt-3 pb-2 px-4">
+                <div className="bg-gray-50 pt-4 pb-3 px-6">
                     <div className="container mx-auto max-w-6xl">
                         <div className="text-center mb-2">
                             <p className="text-sm text-muted-foreground">
@@ -137,8 +137,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                     <div className="flex-1 container mx-auto max-w-6xl px-4 pb-6">
                         <ScrollArea className="pb-4">
                             {/* Mobile list view (hidden on md screens and up) */}
-                            <div className="block md:hidden">
-                                <div className="flex flex-col gap-3">
+                            <div className="block md:hidden px-2 py-3">
+                                <div className="flex flex-col gap-4">
                                     {memos.map((memo) => (
                                         <MemoListItem
                                             key={memo.id}
@@ -177,8 +177,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                 )}
 
                 {/* Footer - Simplified for mobile */}
-                <footer className="border-t py-4" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
-                    <div className="container mx-auto max-w-6xl px-4">
+                <footer className="border-t py-5" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
+                    <div className="container mx-auto max-w-6xl px-6">
                         <div className="flex flex-col justify-between items-center">
                             <div className="text-sm text-white/80">
                                 © {new Date().getFullYear()} SPUP eMemo. All rights reserved.
@@ -193,34 +193,8 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                 <DialogContent className="max-w-full sm:max-w-4xl max-h-[90vh] overflow-auto p-0 m-0 sm:m-4 w-full rounded-none sm:rounded-lg">
                     {selectedMemo && (
                         <div className="flex flex-col h-full">
-                            {/* Image Container - Full width on mobile, responsive height */}
-                            {selectedMemo.image ? (
-                                <div className="w-full bg-black flex items-center justify-center">
-                                    <div
-                                        ref={imageContainerRef}
-                                        className="relative w-full cursor-pointer overflow-hidden"
-                                        onClick={openImageModal}
-                                        onMouseMove={handleImageInteraction}
-                                        onTouchMove={handleImageInteraction}
-                                        onMouseLeave={handleImageLeave}
-                                        onTouchEnd={handleImageLeave}
-                                    >
-                                        <img
-                                            ref={zoomImageRef}
-                                            src={selectedMemo.image_url}
-                                            alt={selectedMemo.title}
-                                            className={`w-full h-auto object-contain max-h-[30vh] sm:max-h-[50vh] transition-transform duration-200 ${isZooming ? 'scale-[1.5]' : 'scale-100'}`}
-                                        />
-
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/10 z-20">
-                                            <span className="bg-black/50 text-white px-3 py-1 rounded-md text-sm">Tap to enlarge</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : null}
-
                             {/* Content Container */}
-                            <div className="p-4 sm:p-6 overflow-y-auto flex flex-col">
+                            <div className="px-6 py-5 sm:px-8 sm:py-6 overflow-y-auto flex flex-col">
                                 <DialogHeader>
                                     <DialogTitle className="text-lg sm:text-xl font-bold mt-2" style={{ color: colors.primary }}>{selectedMemo.title}</DialogTitle>
                                     <DialogDescription>
@@ -248,10 +222,41 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                                 </DialogHeader>
 
                                 {/* Content */}
-                                <div className="mt-4 flex-1 overflow-y-auto">
+                                <div className="mt-5 flex-1 overflow-y-auto">
                                     <div className="prose prose-sm max-w-none text-sm sm:text-base"
                                         dangerouslySetInnerHTML={{ __html: selectedMemo.content }}>
                                     </div>
+
+                                    {/* Image as Attachment */}
+                                    {selectedMemo.image ? (
+                                        <div className="mt-6 border rounded-lg overflow-hidden bg-gray-50">
+                                            <div className="px-4 py-2 bg-gray-100 border-b flex items-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" style={{ color: colors.primary }} viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
+                                                </svg>
+                                                <span className="text-xs font-medium" style={{ color: colors.primary }}>Attachment</span>
+                                            </div>
+                                            <div
+                                                ref={imageContainerRef}
+                                                className="relative cursor-pointer p-3"
+                                                onClick={openImageModal}
+                                                onMouseMove={handleImageInteraction}
+                                                onTouchMove={handleImageInteraction}
+                                                onMouseLeave={handleImageLeave}
+                                                onTouchEnd={handleImageLeave}
+                                            >
+                                                <img
+                                                    ref={zoomImageRef}
+                                                    src={selectedMemo.image_url}
+                                                    alt={selectedMemo.title}
+                                                    className={`mx-auto h-auto object-contain max-w-[80%] max-h-[18vh] sm:max-h-[30vh] transition-transform duration-200 ${isZooming ? 'scale-[1.3]' : 'scale-100'}`}
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/5 z-20">
+                                                    <span className="bg-black/60 text-white px-3 py-1 rounded-md text-sm">Tap to enlarge</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="flex justify-between items-center mt-4 pt-3 border-t text-xs sm:text-sm">
@@ -422,67 +427,81 @@ function MemoListItem({ memo, onClick, colors }) {
 
     return (
         <div
-            className={`bg-white rounded-lg shadow overflow-hidden flex cursor-pointer transition-colors ${isRecent ? 'ring-2 ring-offset-1' : ''}`}
+            className={`bg-white shadow-sm overflow-hidden flex flex-col cursor-pointer transition-all hover:shadow active:scale-[0.99] ${isRecent ? 'border-l-4' : 'border-l'}`}
             onClick={onClick}
-            style={isRecent ? { ringColor: colors.secondary } : {}}
+            style={isRecent ? { borderLeftColor: colors.secondary } : { borderLeftColor: colors.primary + '40' }}
         >
-            {/* Thumbnail */}
-            <div className="w-20 h-20 flex-shrink-0 bg-gray-100 relative">
-                {memo.image && !imageError ? (
-                    <img
-                        src={memo.image_url}
-                        alt=""
-                        className="w-full h-full object-cover"
-                        onError={handleMemoImageError}
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <span className="text-xl text-gray-400">{memo.title.charAt(0)}</span>
-                    </div>
-                )}
-                {/* Status indicator - small dot instead of checkmark */}
-                {memo.is_published && (
-                    <div
-                        className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full shadow-sm"
-                        style={{ backgroundColor: colors.secondary }}
-                    />
-                )}
-            </div>
-
-            {/* Content */}
-            <div className="p-3 flex-1 min-w-0 flex flex-col justify-between border-l-2" style={{ borderColor: isRecent ? colors.secondary : colors.primary }}>
-                <div>
-                    <div className="flex justify-between items-center mb-0.5">
-                        <h3 className="font-semibold text-sm line-clamp-1" style={{ color: colors.primary }}>{memo.title}</h3>
-                        {isRecent && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-1"
-                                  style={{ backgroundColor: colors.secondary, color: colors.dark }}>
-                                New
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-xs text-gray-600 line-clamp-2 mb-1">
-                        {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
-                    </p>
+            {/* Memo header with author and date */}
+            <div className="px-4 py-2 flex items-center justify-between border-b" style={{ borderColor: colors.primary + '10', backgroundColor: colors.primary + '05' }}>
+                <div className="flex items-center">
+                    <Avatar className="h-6 w-6 mr-2" style={{ backgroundColor: colors.primaryLight }}>
+                        {authorAvatarSrc ? (
+                            <AvatarImage src={authorAvatarSrc} alt={author.name} onError={handleAuthorAvatarError} />
+                        ) : null}
+                        <AvatarFallback style={{ backgroundColor: colors.primaryLight, color: 'white' }}>{author.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-medium" style={{ color: colors.primary }}>{author.name}</span>
                 </div>
 
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                        <Avatar className="h-4 w-4 mr-1 border" style={{ borderColor: colors.secondary }}>
-                            {authorAvatarSrc ? (
-                                <AvatarImage src={authorAvatarSrc} alt={author.name} onError={handleAuthorAvatarError} />
-                            ) : null}
-                            <AvatarFallback className="text-[8px]" style={{ backgroundColor: colors.primaryLight, color: 'white' }}>{author.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-[10px] text-gray-500 truncate max-w-[100px]">{author.name}</span>
-                    </div>
-
+                <div className="flex items-center">
+                    {isRecent && (
+                        <span className="text-xs px-2 py-0.5 mr-2 font-medium"
+                              style={{ backgroundColor: colors.secondary + '20', color: colors.dark }}>
+                            New
+                        </span>
+                    )}
                     {publishedDate && (
-                        <div className="text-[10px] text-gray-400 flex items-center">
-                            <CalendarIcon className="h-2.5 w-2.5 mr-0.5" />
+                        <div className="text-[10px] text-gray-500 flex items-center">
+                            <CalendarIcon className="h-3 w-3 mr-1" />
                             {formatDistanceToNow(publishedDate, { addSuffix: true })}
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div className="flex p-3">
+                {/* Thumbnail */}
+                <div className="w-20 h-20 flex-shrink-0 bg-gray-50 relative">
+                    {memo.image && !imageError ? (
+                        <img
+                            src={memo.image_url}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            onError={handleMemoImageError}
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center"
+                             style={{ backgroundColor: colors.primary + '10' }}>
+                            <span className="text-2xl font-medium" style={{ color: colors.primary }}>{memo.title.charAt(0)}</span>
+                        </div>
+                    )}
+
+                    {/* Status indicator - flat bar */}
+                    {memo.is_published && !isRecent && (
+                        <div
+                            className="absolute bottom-0 left-0 right-0 py-1 text-[9px] font-medium text-center"
+                            style={{ backgroundColor: colors.primary, color: 'white' }}
+                        >
+                            Published
+                        </div>
+                    )}
+                </div>
+
+                {/* Content */}
+                <div className="ml-3 flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                        <h3 className="font-semibold text-sm line-clamp-1 mb-1" style={{ color: colors.primary }}>{memo.title}</h3>
+                        <p className="text-xs text-gray-600 line-clamp-2">
+                            {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
+                        </p>
+                    </div>
+
+                    <div className="mt-1 text-[10px] text-right">
+                        <span className="inline-flex items-center px-2 py-0.5 text-gray-600" style={{ backgroundColor: colors.primary + '10' }}>
+                            <BellIcon className="h-2.5 w-2.5 mr-1" />
+                            Memo #{memo.id}
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
