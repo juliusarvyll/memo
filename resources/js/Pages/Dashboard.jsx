@@ -49,11 +49,10 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
     const user = auth.user;
     const [selectedMemo, setSelectedMemo] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [imageModalOpen, setImageModalOpen] = useState(false);
     const [avatarSrc, setAvatarSrc] = useState(null);
-    const [isZooming, setIsZooming] = useState(false);
-    const imageContainerRef = useRef(null);
-    const zoomImageRef = useRef(null);
+    const [imageModalOpen, setImageModalOpen] = useState(false);
+    const [modalImageUrl, setModalImageUrl] = useState(null);
+    const [imageNaturalSize, setImageNaturalSize] = useState({ width: null, height: null });
 
     // Set up avatar source with error handling
     useEffect(() => {
@@ -73,58 +72,30 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
         setDialogOpen(true);
     };
 
-    const openImageModal = (e) => {
-        e.stopPropagation();
-        setImageModalOpen(true);
-    };
-
-    // Modified for touch and mouse support
-    const handleImageInteraction = (e) => {
-        if (!imageContainerRef.current || !zoomImageRef.current) return;
-
-        const { left, top, width, height } = imageContainerRef.current.getBoundingClientRect();
-
-        // Get coordinates whether it's a touch or mouse event
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-        // Calculate position in percentage (0 to 100)
-        const x = Math.max(0, Math.min(100, ((clientX - left) / width) * 100));
-        const y = Math.max(0, Math.min(100, ((clientY - top) / height) * 100));
-
-        // Set transform origin based on interaction position
-        zoomImageRef.current.style.transformOrigin = `${x}% ${y}%`;
-        setIsZooming(true);
-    };
-
-    const handleImageLeave = () => {
-        setIsZooming(false);
-    };
-
     return (
         <>
-            <Head title="SPUP eMemo" />
+            <Head title="SPUP eBulletin" />
             <div className="flex flex-col min-h-screen bg-gray-50">
                 {/* Header section - Improved for mobile with SPUP colors */}
-                <header className="bg-white shadow border-b py-4 sticky top-0 z-30" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
-                    <div className="container mx-auto max-w-6xl px-6">
-                        <div className="flex justify-between items-center">
+                <header className="sticky top-0 z-30 py-4 bg-white border-b shadow" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
+                    <div className="container max-w-6xl px-6 mx-auto">
+                        <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
                                 <img
                                     src="images/logo.png"
                                     alt="SPUP Logo"
-                                    className="h-9 w-auto"
+                                    className="w-auto h-9"
                                 />
-                                <h1 className="text-xl font-bold text-white">SPUP eMemo</h1>
+                                <h1 className="text-xl font-bold text-white">SPUP eBulletin</h1>
                             </div>
                         </div>
                     </div>
                 </header>
 
                 {/* Title section - Simplified for mobile */}
-                <div className="bg-gray-50 pt-4 pb-3 px-6">
-                    <div className="container mx-auto max-w-6xl">
-                        <div className="text-center mb-2">
+                <div className="px-6 pt-4 pb-3 bg-gray-50">
+                    <div className="container max-w-6xl mx-auto">
+                        <div className="mb-2 text-center">
                             <p className="text-sm text-muted-foreground">
                                 View the latest announcements and updates.
                             </p>
@@ -134,10 +105,10 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
 
                 {/* Dynamic height calculation removed for better mobile support */}
                 {memos && memos.length > 0 ? (
-                    <div className="flex-1 container mx-auto max-w-6xl px-4 pb-6">
+                    <div className="container flex-1 max-w-6xl px-4 pb-6 mx-auto">
                         <ScrollArea className="pb-4">
                             {/* Mobile list view (hidden on md screens and up) */}
-                            <div className="block md:hidden px-2 py-3">
+                            <div className="block px-2 py-3 md:hidden">
                                 <div className="flex flex-col gap-4">
                                     {memos.map((memo) => (
                                         <MemoListItem
@@ -151,7 +122,7 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                             </div>
 
                             {/* Desktop grid view (hidden on small screens) */}
-                            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
+                            <div className="hidden gap-4 pb-4 md:grid md:grid-cols-2 lg:grid-cols-3">
                                 {memos.map((memo) => (
                                     <MemoCard
                                         key={memo.id}
@@ -164,11 +135,11 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                         </ScrollArea>
                     </div>
                 ) : (
-                    <div className="flex-1 container mx-auto max-w-6xl px-4 pb-6">
+                    <div className="container flex-1 max-w-6xl px-4 pb-6 mx-auto">
                         <div className="flex flex-col items-center justify-center h-[50vh]">
-                            <div className="bg-white p-6 rounded-lg shadow-md text-center">
-                                <h2 className="text-xl font-semibold mb-2" style={{ color: colors.primary }}>No Memos Available</h2>
-                                <p className="text-muted-foreground mb-4">
+                            <div className="p-6 text-center bg-white rounded-lg shadow-md">
+                                <h2 className="mb-2 text-xl font-semibold" style={{ color: colors.primary }}>No Memos Available</h2>
+                                <p className="mb-4 text-muted-foreground">
                                     There are no published memos at the moment. Please check back later.
                                 </p>
                             </div>
@@ -177,127 +148,94 @@ export default function Dashboard({ memos, canLogin, canRegister }) {
                 )}
 
                 {/* Footer - Simplified for mobile */}
-                <footer className="border-t py-5" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
-                    <div className="container mx-auto max-w-6xl px-6">
-                        <div className="flex flex-col justify-between items-center">
+                <footer className="py-5 border-t" style={{ backgroundColor: colors.primary, borderColor: colors.secondary }}>
+                    <div className="container max-w-6xl px-6 mx-auto">
+                        <div className="flex flex-col items-center justify-between">
                             <div className="text-sm text-white/80">
-                                © {new Date().getFullYear()} SPUP eMemo. All rights reserved.
+                                © {new Date().getFullYear()} SPUP eBulletin. All rights reserved.
                             </div>
                         </div>
                     </div>
                 </footer>
             </div>
 
-            {/* Memo Detail Dialog - Completely revised for mobile */}
+            {/* Memo Detail Dialog - Restyled to look like an email */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="max-w-full sm:max-w-4xl max-h-[90vh] overflow-auto p-0 m-0 sm:m-4 w-full rounded-none sm:rounded-lg">
+                <DialogContent className="max-w-full sm:max-w-2xl max-h-[90vh] overflow-auto p-0 m-0 sm:m-4 w-full rounded-lg bg-white shadow-lg border">
                     {selectedMemo && (
-                        <div className="flex flex-col h-full">
-                            {/* Content Container */}
-                            <div className="px-6 py-5 sm:px-8 sm:py-6 overflow-y-auto flex flex-col">
-                                <DialogHeader>
-                                    <DialogTitle className="text-lg sm:text-xl font-bold mt-2" style={{ color: colors.primary }}>{selectedMemo.title}</DialogTitle>
-                                    <DialogDescription>
-                                        <div className="flex items-center mt-3">
-                                            {selectedMemo.author.avatar ? (
-                                                <Avatar className="h-9 w-9 mr-2 border-2" style={{ borderColor: colors.secondary }}>
-                                                    <AvatarImage src={`/storage/${selectedMemo.author.avatar}`} alt={selectedMemo.author.name} />
-                                                    <AvatarFallback style={{ backgroundColor: colors.primaryLight, color: 'white' }}>{selectedMemo.author.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
-                                            ) : (
-                                                <Avatar className="h-9 w-9 mr-2 border-2" style={{ borderColor: colors.secondary }}>
-                                                    <AvatarFallback style={{ backgroundColor: colors.primaryLight, color: 'white' }}>{selectedMemo.author.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
-                                            )}
-                                            <div>
-                                                <p className="font-medium text-sm sm:text-base">{selectedMemo.author.name}</p>
-                                                {(selectedMemo.author.position || selectedMemo.author.department) && (
-                                                    <p className="text-xs sm:text-sm text-muted-foreground">
-                                                        {[selectedMemo.author.position, selectedMemo.author.department].filter(Boolean).join(' • ')}
-                                                    </p>
-                                                )}
+                        <div className="flex flex-col h-full font-sans">
+                            {/* Email-style Header */}
+                            <div className="px-6 pt-5 pb-3 border-b bg-gray-50">
+                                <div className="mb-1 text-xs text-gray-500">Memo</div>
+                                <div className="text-lg font-bold text-gray-900 mb-1">{selectedMemo.title}</div>
+                                <div className="flex flex-col gap-1 text-sm text-gray-700">
+                                    <div><span className="font-semibold">From:</span> {selectedMemo.author.name}{selectedMemo.author.position ? `, ${selectedMemo.author.position}` : ''}{selectedMemo.author.department ? ` (${selectedMemo.author.department})` : ''}</div>
+                                    <div><span className="font-semibold">To:</span> All Employees</div>
+                                    <div><span className="font-semibold">Date:</span> {format(new Date(selectedMemo.created_at), 'PPP p')}</div>
+                                </div>
+                            </div>
+
+                            {/* Email-style Content */}
+                            <div className="flex-1 px-6 py-5 bg-white">
+                                <div className="prose prose-sm sm:prose-base max-w-none text-gray-900" dangerouslySetInnerHTML={{ __html: selectedMemo.content }} />
+
+                                {/* Attachment Section */}
+                                {selectedMemo.image && (
+                                    <div className="mt-6 border-t pt-4">
+                                        <div className="flex items-center mb-2 text-gray-700">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l7.07-7.07a4 4 0 00-5.657-5.657l-7.07 7.07a6 6 0 108.485 8.485l6.364-6.364" />
+                                            </svg>
+                                            <span className="font-medium">Attachment</span>
+                                        </div>
+                                        <div className="flex items-center gap-3 p-2 bg-gray-100 rounded shadow-sm">
+                                            <img
+                                                src={selectedMemo.image_url}
+                                                alt={selectedMemo.title}
+                                                className="object-contain h-20 w-auto max-w-[5rem] rounded border bg-white cursor-pointer hover:shadow"
+                                                onClick={() => {
+                                                    setModalImageUrl(selectedMemo.image_url);
+                                                    setImageModalOpen(true);
+                                                }}
+                                            />
+                                            <div className="flex flex-col">
+                                                <button
+                                                    className="text-xs text-blue-600 hover:underline mt-1 text-left"
+                                                    onClick={() => {
+                                                        setModalImageUrl(selectedMemo.image_url);
+                                                        setImageModalOpen(true);
+                                                    }}
+                                                >
+                                                    View Attachment
+                                                </button>
                                             </div>
                                         </div>
-                                    </DialogDescription>
-                                </DialogHeader>
-
-                                {/* Content */}
-                                <div className="mt-5 flex-1 overflow-y-auto">
-                                    <div className="prose prose-sm max-w-none text-sm sm:text-base"
-                                        dangerouslySetInnerHTML={{ __html: selectedMemo.content }}>
                                     </div>
+                                )}
+                            </div>
 
-                                    {/* Image as Attachment */}
-                                    {selectedMemo.image ? (
-                                        <div className="mt-6 border rounded-lg overflow-hidden bg-gray-50">
-                                            <div className="px-4 py-2 bg-gray-100 border-b flex items-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" style={{ color: colors.primary }} viewBox="0 0 20 20" fill="currentColor">
-                                                    <path fillRule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clipRule="evenodd" />
-                                                </svg>
-                                                <span className="text-xs font-medium" style={{ color: colors.primary }}>Attachment</span>
-                                            </div>
-                                            <div
-                                                ref={imageContainerRef}
-                                                className="relative cursor-pointer p-3"
-                                                onClick={openImageModal}
-                                                onMouseMove={handleImageInteraction}
-                                                onTouchMove={handleImageInteraction}
-                                                onMouseLeave={handleImageLeave}
-                                                onTouchEnd={handleImageLeave}
-                                            >
-                                                <img
-                                                    ref={zoomImageRef}
-                                                    src={selectedMemo.image_url}
-                                                    alt={selectedMemo.title}
-                                                    className={`mx-auto h-auto object-contain max-w-[80%] max-h-[18vh] sm:max-h-[30vh] transition-transform duration-200 ${isZooming ? 'scale-[1.3]' : 'scale-100'}`}
-                                                />
-                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/5 z-20">
-                                                    <span className="bg-black/60 text-white px-3 py-1 rounded-md text-sm">Tap to enlarge</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ) : null}
-                                </div>
-
-                                <div className="flex justify-between items-center mt-4 pt-3 border-t text-xs sm:text-sm">
-                                    <div className="text-muted-foreground">
-                                        Memo ID: {selectedMemo.id}
-                                    </div>
-                                    <div className="text-muted-foreground">
-                                        Posted: {format(new Date(selectedMemo.created_at), 'PPP')}
-                                    </div>
-                                </div>
+                            {/* Footer */}
+                            <div className="px-6 py-3 border-t bg-gray-50 text-xs text-gray-500 flex justify-between items-center">
+                                <span>Memo ID: {selectedMemo.id}</span>
+                                <span>Posted: {format(new Date(selectedMemo.created_at), 'PPP')}</span>
                             </div>
                         </div>
                     )}
                 </DialogContent>
             </Dialog>
-
-            {/* Image Modal - Better touch support */}
-            {selectedMemo && selectedMemo.image && (
-                <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
-                    <DialogContent className="max-w-full sm:max-w-5xl max-h-[95vh] p-1 sm:p-4 flex items-center justify-center m-0 sm:m-4 w-full rounded-none sm:rounded-lg">
-                        <div className="relative w-full h-full flex items-center justify-center">
-                            <img
-                                src={selectedMemo.image_url}
-                                alt={selectedMemo.title}
-                                className="max-w-full max-h-[90vh] object-contain"
-                            />
-                            <Button
-                                className="absolute top-2 right-2 h-8 w-8 p-0 rounded-full hover:bg-opacity-70"
-                                onClick={() => setImageModalOpen(false)}
-                                style={{ backgroundColor: colors.primary, color: 'white' }}
-                            >
-                                <span className="sr-only">Close</span>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M18 6L6 18"></path>
-                                    <path d="M6 6L18 18"></path>
-                                </svg>
-                            </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
-            )}
+            {/* Dialog for full-size image attachment */}
+            <Dialog open={imageModalOpen} onOpenChange={setImageModalOpen}>
+                <DialogContent className="flex flex-col items-center justify-center max-w-3xl p-0 bg-transparent shadow-none border-none">
+                    {modalImageUrl && (
+                        <img
+                            src={modalImageUrl}
+                            alt="Attachment"
+                            className="object-contain max-h-[685px] w-auto h-auto mx-auto"
+                            style={{ maxWidth: '100%', maxHeight: '685px', display: 'block' }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
@@ -337,24 +275,24 @@ function MemoCard({ memo, onClick, colors }) {
                     <img
                         src={memo.image_url}
                         alt={memo.title}
-                        className="w-full h-full object-cover"
+                        className="object-cover w-full h-full"
                         onError={handleMemoImageError}
                     />
                     {/* Status indicator - small dot instead of checkmark */}
                     {memo.is_published && (
                         <div
-                            className="absolute top-2 right-2 w-3 h-3 rounded-full shadow-sm"
+                            className="absolute w-3 h-3 rounded-full shadow-sm top-2 right-2"
                             style={{ backgroundColor: colors.secondary }}
                         />
                     )}
                 </div>
             ) : (
-                <div className="absolute inset-0 w-full h-full bg-gray-100 flex items-center justify-center">
-                    <div className="text-gray-400 text-3xl">{memo.title.charAt(0)}</div>
+                <div className="absolute inset-0 flex items-center justify-center w-full h-full bg-gray-100">
+                    <div className="text-3xl text-gray-400">{memo.title.charAt(0)}</div>
                     {/* Status indicator - small dot instead of checkmark */}
                     {memo.is_published && (
                         <div
-                            className="absolute top-2 right-2 w-3 h-3 rounded-full shadow-sm"
+                            className="absolute w-3 h-3 rounded-full shadow-sm top-2 right-2"
                             style={{ backgroundColor: colors.secondary }}
                         />
                     )}
@@ -366,7 +304,7 @@ function MemoCard({ memo, onClick, colors }) {
                 <h3 className="font-bold text-white line-clamp-2">{memo.title}</h3>
 
                 <div className="flex items-center mt-1">
-                    <Avatar className="h-5 w-5 mr-1 border" style={{ borderColor: colors.secondary }}>
+                    <Avatar className="w-5 h-5 mr-1 border" style={{ borderColor: colors.secondary }}>
                         {authorAvatarSrc ? (
                             <AvatarImage src={authorAvatarSrc} alt={author.name} onError={handleAuthorAvatarError} />
                         ) : null}
@@ -375,14 +313,14 @@ function MemoCard({ memo, onClick, colors }) {
                     <div className="text-xs text-white/90">{author.name}</div>
                 </div>
 
-                <div className="text-xs text-white/80 line-clamp-2 mt-1">
+                <div className="mt-1 text-xs text-white/80 line-clamp-2">
                     {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
                 </div>
 
-                <div className="flex justify-between items-center mt-1 text-xs text-white/70">
+                <div className="flex items-center justify-between mt-1 text-xs text-white/70">
                     {publishedDate && (
-                        <div className="text-xs text-white/80 flex items-center">
-                            <CalendarIcon className="h-3 w-3 mr-1" />
+                        <div className="flex items-center text-xs text-white/80">
+                            <CalendarIcon className="w-3 h-3 mr-1" />
                             {formatDistanceToNow(publishedDate, { addSuffix: true })}
                         </div>
                     )}
@@ -432,9 +370,9 @@ function MemoListItem({ memo, onClick, colors }) {
             style={isRecent ? { borderLeftColor: colors.secondary } : { borderLeftColor: colors.primary + '40' }}
         >
             {/* Memo header with author and date */}
-            <div className="px-4 py-2 flex items-center justify-between border-b" style={{ borderColor: colors.primary + '10', backgroundColor: colors.primary + '05' }}>
+            <div className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: colors.primary + '10', backgroundColor: colors.primary + '05' }}>
                 <div className="flex items-center">
-                    <Avatar className="h-6 w-6 mr-2" style={{ backgroundColor: colors.primaryLight }}>
+                    <Avatar className="w-6 h-6 mr-2" style={{ backgroundColor: colors.primaryLight }}>
                         {authorAvatarSrc ? (
                             <AvatarImage src={authorAvatarSrc} alt={author.name} onError={handleAuthorAvatarError} />
                         ) : null}
@@ -452,7 +390,7 @@ function MemoListItem({ memo, onClick, colors }) {
                     )}
                     {publishedDate && (
                         <div className="text-[10px] text-gray-500 flex items-center">
-                            <CalendarIcon className="h-3 w-3 mr-1" />
+                            <CalendarIcon className="w-3 h-3 mr-1" />
                             {formatDistanceToNow(publishedDate, { addSuffix: true })}
                         </div>
                     )}
@@ -461,18 +399,21 @@ function MemoListItem({ memo, onClick, colors }) {
 
             <div className="flex p-3">
                 {/* Thumbnail */}
-                <div className="w-20 h-20 flex-shrink-0 bg-gray-50 relative">
+                <div className="relative flex-shrink-0 w-20 h-20 bg-gray-50">
                     {memo.image && !imageError ? (
-                        <img
+                        <iframe
                             src={memo.image_url}
-                            alt=""
-                            className="w-full h-full object-cover"
+                            alt={memo.title}
+                            className="object-cover w-full h-full"
+                            frameBorder="0"
+                            allowFullScreen
+                            style={{ overflow: 'hidden', width: '100%', height: '100%', display: 'block' }}
+                            scrolling="no"
                             onError={handleMemoImageError}
                         />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center"
+                        <div className="flex items-center justify-center w-full h-full"
                              style={{ backgroundColor: colors.primary + '10' }}>
-                            <span className="text-2xl font-medium" style={{ color: colors.primary }}>{memo.title.charAt(0)}</span>
                         </div>
                     )}
 
@@ -488,9 +429,9 @@ function MemoListItem({ memo, onClick, colors }) {
                 </div>
 
                 {/* Content */}
-                <div className="ml-3 flex-1 min-w-0 flex flex-col justify-between">
+                <div className="flex flex-col justify-between flex-1 min-w-0 ml-3">
                     <div>
-                        <h3 className="font-semibold text-sm line-clamp-1 mb-1" style={{ color: colors.primary }}>{memo.title}</h3>
+                        <h3 className="mb-1 text-sm font-semibold line-clamp-1" style={{ color: colors.primary }}>{memo.title}</h3>
                         <p className="text-xs text-gray-600 line-clamp-2">
                             {memo.content ? memo.content.replace(/<[^>]*>?/gm, '') : ''}
                         </p>
